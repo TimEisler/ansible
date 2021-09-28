@@ -40,7 +40,7 @@ class TaskInclude(Task):
     """
 
     BASE = frozenset(('file', '_raw_params'))  # directly assigned
-    OTHER_ARGS = frozenset(('apply',))  # assigned to matching property
+    OTHER_ARGS = frozenset(('apply','reverse',))  # assigned to matching property
     VALID_ARGS = BASE.union(OTHER_ARGS)  # all valid args
     VALID_INCLUDE_KEYWORDS = frozenset(('action', 'args', 'collections', 'debugger', 'ignore_errors', 'loop', 'loop_control',
                                         'loop_with', 'name', 'no_log', 'register', 'run_once', 'tags', 'timeout', 'vars',
@@ -84,6 +84,12 @@ class TaskInclude(Task):
             raise AnsibleParserError('Invalid options for %s: apply' % task.action, obj=data)
         elif not isinstance(apply_attrs, dict):
             raise AnsibleParserError('Expected a dict for apply but got %s instead' % type(apply_attrs), obj=data)
+
+        reverse_attrs = task.args.get('reverse', {})
+        if reverse_attrs:
+            display.debug("reverse attr is set to true")
+        else:
+            display.debug("reverse attr is set to false")
 
         return task
 
