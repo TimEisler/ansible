@@ -919,6 +919,12 @@ class StrategyBase:
         Loads an included YAML file of tasks, applying the optional set of variables.
         '''
 
+        reverse_attr = included_file._task.args.get('reverse', {})
+        if reverse_attr:
+            display.debug("reverse attr is set to true")
+        else:
+            display.debug("reverse attr is set to false")
+
         display.debug("loading included file: %s" % included_file._filename)
         try:
             data = self._loader.load_from_file(included_file._filename)
@@ -959,6 +965,13 @@ class StrategyBase:
                 self._tqm._stats.increment('failures', host.name)
                 self._tqm.send_callback('v2_runner_on_failed', tr)
             return []
+
+        if reverse_attr:
+            display.debug("Reversing the order of included tasks.")
+            block_list.__getitem__(0).get_ds().reverse()
+            block_list.__getitem__(0)._attributes['block'].reverse()
+        else:
+            display.debug("Leaving the order of included tasks alone.")
 
         # finally, send the callback and return the list of blocks loaded
         self._tqm.send_callback('v2_playbook_on_include', included_file)
