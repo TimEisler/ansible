@@ -58,10 +58,8 @@ options:
     - Influence whether the remote file must always be replaced.
     - If C(yes), the remote file will be replaced when contents are different than the source.
     - If C(no), the file will only be transferred if the destination does not exist.
-    - Alias C(thirsty) has been deprecated and will be removed in 2.13.
     type: bool
     default: yes
-    aliases: [ thirsty ]
     version_added: '1.1'
   mode:
     description:
@@ -118,29 +116,37 @@ options:
     type: str
     version_added: '2.5'
 extends_documentation_fragment:
-- decrypt
-- files
-- validate
-- action_common_attributes
+    - decrypt
+    - files
+    - validate
+    - action_common_attributes
+    - action_common_attributes.files
+    - action_common_attributes.flow
 notes:
-- The M(ansible.builtin.copy) module recursively copy facility does not scale to lots (>hundreds) of files.
+    - The M(ansible.builtin.copy) module recursively copy facility does not scale to lots (>hundreds) of files.
 seealso:
-- module: ansible.builtin.assemble
-- module: ansible.builtin.fetch
-- module: ansible.builtin.file
-- module: ansible.builtin.template
-- module: ansible.posix.synchronize
-- module: ansible.windows.win_copy
+    - module: ansible.builtin.assemble
+    - module: ansible.builtin.fetch
+    - module: ansible.builtin.file
+    - module: ansible.builtin.template
+    - module: ansible.posix.synchronize
+    - module: ansible.windows.win_copy
 author:
-- Ansible Core Team
-- Michael DeHaan
+    - Ansible Core Team
+    - Michael DeHaan
 attributes:
   action:
     support: full
+  async:
+    support: none
+  bypass_host_loop:
+    support: none
   check_mode:
     support: full
   diff_mode:
     support: full
+  platform:
+    platforms: posix
   safe_file_operations:
       support: full
   vault:
@@ -529,7 +535,7 @@ def main():
             content=dict(type='str', no_log=True),
             dest=dict(type='path', required=True),
             backup=dict(type='bool', default=False),
-            force=dict(type='bool', default=True, aliases=['thirsty']),
+            force=dict(type='bool', default=True),
             validate=dict(type='str'),
             directory_mode=dict(type='raw'),
             remote_src=dict(type='bool'),
@@ -540,10 +546,6 @@ def main():
         add_file_common_args=True,
         supports_check_mode=True,
     )
-
-    if module.params.get('thirsty'):
-        module.deprecate('The alias "thirsty" has been deprecated and will be removed, use "force" instead',
-                         version='2.13', collection_name='ansible.builtin')
 
     src = module.params['src']
     b_src = to_bytes(src, errors='surrogate_or_strict')

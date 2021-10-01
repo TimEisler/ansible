@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import errno
 import fcntl
-import hashlib
 import inspect
 import os
 import pkgutil
@@ -31,7 +30,6 @@ from .encoding import (
 
 from .io import (
     open_binary_file,
-    read_binary_file,
     read_text_file,
 )
 
@@ -163,13 +161,11 @@ def exclude_none_values(data):  # type: (t.Dict[TKey, t.Optional[TValue]]) -> t.
     return dict((key, value) for key, value in data.items() if value is not None)
 
 
-def find_executable(executable, cwd=None, path=None, required=True):
+def find_executable(executable, cwd=None, path=None, required=True):  # type: (str, t.Optional[str], t.Optional[str], t.Union[bool, str]) -> t.Optional[str]
     """
-    :type executable: str
-    :type cwd: str
-    :type path: str
-    :type required: bool | str
-    :rtype: str | None
+    Find the specified executable and return the full path, or None if it could not be found.
+    If required is True an exception will be raised if the executable is not found.
+    If required is set to 'warning' then a warning will be shown if the executable is not found.
     """
     match = None
     real_cwd = os.getcwd()
@@ -215,12 +211,11 @@ def find_executable(executable, cwd=None, path=None, required=True):
     return match
 
 
-def find_python(version, path=None, required=True):
+def find_python(version, path=None, required=True):  # type: (str, t.Optional[str], bool) -> t.Optional[str]
     """
-    :type version: str
-    :type path: str | None
-    :type required: bool
-    :rtype: str
+    Find and return the full path to the specified Python version.
+    If required, an exception will be raised not found.
+    If not required, None will be returned if not found.
     """
     version_info = str_to_version(version)
 
@@ -251,22 +246,20 @@ def get_available_python_versions():  # type: () -> t.Dict[str, str]
     return dict((version, path) for version, path in ((version, find_python(version, required=False)) for version in SUPPORTED_PYTHON_VERSIONS) if path)
 
 
-def raw_command(cmd, capture=False, env=None, data=None, cwd=None, explain=False, stdin=None, stdout=None,
-                cmd_verbosity=1, str_errors='strict', error_callback=None):
-    """
-    :type cmd: collections.Iterable[str]
-    :type capture: bool
-    :type env: dict[str, str] | None
-    :type data: str | None
-    :type cwd: str | None
-    :type explain: bool
-    :type stdin: file | None
-    :type stdout: file | None
-    :type cmd_verbosity: int
-    :type str_errors: str
-    :type error_callback: t.Callable[[SubprocessError], None]
-    :rtype: str | None, str | None
-    """
+def raw_command(
+        cmd,  # type: t.Iterable[str]
+        capture=False,  # type: bool
+        env=None,  # type: t.Optional[t.Dict[str, str]]
+        data=None,  # type: t.Optional[str]
+        cwd=None,  # type: t.Optional[str]
+        explain=False,  # type: bool
+        stdin=None,  # type: t.Optional[t.BinaryIO]
+        stdout=None,  # type: t.Optional[t.BinaryIO]
+        cmd_verbosity=1,  # type: int
+        str_errors='strict',  # type: str
+        error_callback=None,  # type: t.Optional[t.Callable[[SubprocessError], None]]
+):  # type: (...) -> t.Tuple[t.Optional[str], t.Optional[str]]
+    """Run the specified command and return stdout and stderr as a tuple."""
     if not cwd:
         cwd = os.getcwd()
 
@@ -374,9 +367,6 @@ def common_environment():
         # Example configuration for brew on macOS:
         # export LDFLAGS="-L$(brew --prefix openssl)/lib/     -L$(brew --prefix libyaml)/lib/"
         # export  CFLAGS="-I$(brew --prefix openssl)/include/ -I$(brew --prefix libyaml)/include/"
-        # However, this is not adequate for PyYAML 3.13, which is the latest version supported on Python 2.6.
-        # For that version the standard location must be used, or `pip install` must be invoked with additional options:
-        # --global-option=build_ext --global-option=-L{path_to_lib_dir}
         'LDFLAGS',
         'CFLAGS',
     )
@@ -394,12 +384,8 @@ def common_environment():
     return env
 
 
-def pass_vars(required, optional):
-    """
-    :type required: collections.Iterable[str]
-    :type optional: collections.Iterable[str]
-    :rtype: dict[str, str]
-    """
+def pass_vars(required, optional):  # type: (t.Collection[str], t.Collection[str]) -> t.Dict[str, str]
+    """Return a filtered dictionary of environment variables based on the current environment."""
     env = {}
 
     for name in required:
@@ -415,10 +401,8 @@ def pass_vars(required, optional):
     return env
 
 
-def remove_tree(path):
-    """
-    :type path: str
-    """
+def remove_tree(path):  # type: (str) -> None
+    """Remove the specified directory, siliently continuing if the directory does not exist."""
     try:
         shutil.rmtree(to_bytes(path))
     except OSError as ex:
@@ -426,11 +410,8 @@ def remove_tree(path):
             raise
 
 
-def is_binary_file(path):
-    """
-    :type path: str
-    :rtype: bool
-    """
+def is_binary_file(path):  # type: (str) -> bool
+    """Return True if the specified file is a binary file, otherwise return False."""
     assume_text = {
         '.cfg',
         '.conf',
@@ -491,10 +472,8 @@ def generate_name(length=8):  # type: (int) -> str
     return ''.join(random.choice(string.ascii_letters + string.digits) for _idx in range(length))
 
 
-def generate_password():
-    """Generate a random password.
-    :rtype: str
-    """
+def generate_password():  # type: () -> str
+    """Generate and return random password."""
     chars = [
         string.ascii_letters,
         string.digits,
@@ -542,13 +521,11 @@ class Display:
         if os.isatty(0):
             self.rows, self.columns = unpack('HHHH', fcntl.ioctl(0, TIOCGWINSZ, pack('HHHH', 0, 0, 0, 0)))[:2]
 
-    def __warning(self, message):
-        """
-        :type message: str
-        """
+    def __warning(self, message):  # type: (str) -> None
+        """Internal implementation for displaying a warning message."""
         self.print_message('WARNING: %s' % message, color=self.purple, fd=sys.stderr)
 
-    def review_warnings(self):
+    def review_warnings(self):  # type: () -> None
         """Review all warnings which previously occurred."""
         if not self.warnings:
             return
@@ -558,12 +535,8 @@ class Display:
         for warning in self.warnings:
             self.__warning(warning)
 
-    def warning(self, message, unique=False, verbosity=0):
-        """
-        :type message: str
-        :type unique: bool
-        :type verbosity: int
-        """
+    def warning(self, message, unique=False, verbosity=0):  # type: (str, bool, int) -> None
+        """Display a warning level message."""
         if verbosity > self.verbosity:
             return
 
@@ -576,35 +549,28 @@ class Display:
         self.__warning(message)
         self.warnings.append(message)
 
-    def notice(self, message):
-        """
-        :type message: str
-        """
+    def notice(self, message):  # type: (str) -> None
+        """Display a notice level message."""
         self.print_message('NOTICE: %s' % message, color=self.purple, fd=sys.stderr)
 
-    def error(self, message):
-        """
-        :type message: str
-        """
+    def error(self, message):  # type: (str) -> None
+        """Display an error level message."""
         self.print_message('ERROR: %s' % message, color=self.red, fd=sys.stderr)
 
-    def info(self, message, verbosity=0, truncate=False):
-        """
-        :type message: str
-        :type verbosity: int
-        :type truncate: bool
-        """
+    def info(self, message, verbosity=0, truncate=False):  # type: (str, int, bool) -> None
+        """Display an info level message."""
         if self.verbosity >= verbosity:
             color = self.verbosity_colors.get(verbosity, self.yellow)
             self.print_message(message, color=color, fd=sys.stderr if self.info_stderr else sys.stdout, truncate=truncate)
 
-    def print_message(self, message, color=None, fd=sys.stdout, truncate=False):  # pylint: disable=locally-disabled, invalid-name
-        """
-        :type message: str
-        :type color: str | None
-        :type fd: t.IO[str]
-        :type truncate: bool
-        """
+    def print_message(  # pylint: disable=locally-disabled, invalid-name
+            self,
+            message,  # type: str
+            color=None,  # type: t.Optional[str]
+            fd=sys.stdout,  # type: t.TextIO
+            truncate=False,  # type: bool
+    ):  # type: (...) -> None
+        """Display a message."""
         if self.redact and self.sensitive:
             for item in self.sensitive:
                 if not item:
@@ -638,15 +604,15 @@ class ApplicationWarning(Exception):
 
 class SubprocessError(ApplicationError):
     """Error resulting from failed subprocess execution."""
-    def __init__(self, cmd, status=0, stdout=None, stderr=None, runtime=None, error_callback=None):
-        """
-        :type cmd: list[str]
-        :type status: int
-        :type stdout: str | None
-        :type stderr: str | None
-        :type runtime: float | None
-        :type error_callback: t.Optional[t.Callable[[SubprocessError], None]]
-        """
+    def __init__(
+            self,
+            cmd,  # type: t.List[str]
+            status=0,  # type: int
+            stdout=None,  # type: t.Optional[str]
+            stderr=None,  # type: t.Optional[str]
+            runtime=None,  # type: t.Optional[float]
+            error_callback=None,  # type: t.Optional[t.Callable[[SubprocessError], None]]
+    ):  # type: (...) -> None
         message = 'Command "%s" returned exit status %s.\n' % (' '.join(shlex.quote(c) for c in cmd), status)
 
         if stderr:
@@ -674,10 +640,7 @@ class SubprocessError(ApplicationError):
 
 class MissingEnvironmentVariable(ApplicationError):
     """Error caused by missing environment variable."""
-    def __init__(self, name):
-        """
-        :type name: str
-        """
+    def __init__(self, name):  # type: (str) -> None
         super().__init__('Missing environment variable: %s' % name)
 
         self.name = name
@@ -694,12 +657,8 @@ def retry(func, ex_type=SubprocessError, sleep=10, attempts=10):
     return func()
 
 
-def parse_to_list_of_dict(pattern, value):
-    """
-    :type pattern: str
-    :type value: str
-    :return: list[dict[str, str]]
-    """
+def parse_to_list_of_dict(pattern, value):  # type: (str, str) -> t.List[t.Dict[str, str]]
+    """Parse lines from the given value using the specified pattern and return the extracted list of key/value pair dictionaries."""
     matched = []
     unmatched = []
 
@@ -831,21 +790,6 @@ def load_module(path, name):  # type: (str, str) -> None
 def sanitize_host_name(name):
     """Return a sanitized version of the given name, suitable for use as a hostname."""
     return re.sub('[^A-Za-z0-9]+', '-', name)[:63].strip('-')
-
-
-def get_hash(path):
-    """
-    :type path: str
-    :rtype: str | None
-    """
-    if not os.path.exists(path):
-        return None
-
-    file_hash = hashlib.sha256()
-
-    file_hash.update(read_binary_file(path))
-
-    return file_hash.hexdigest()
 
 
 @cache

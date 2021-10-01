@@ -162,10 +162,8 @@ options:
   force:
     description:
       - If C(yes) do not get a cached copy.
-      - Alias C(thirsty) has been deprecated and will be removed in 2.13.
     type: bool
     default: no
-    aliases: [ thirsty ]
   use_proxy:
     description:
       - If C(no), it will not use a proxy, even if one is defined in an environment variable on the target hosts.
@@ -201,6 +199,16 @@ options:
     type: bool
     default: no
     version_added: '2.11'
+extends_documentation_fragment:
+  - action_common_attributes
+  - files
+attributes:
+    check_mode:
+        support: none
+    diff_mode:
+        support: none
+    platform:
+        platforms: posix
 notes:
   - The dependency on httplib2 was removed in Ansible 2.1.
   - The module returns all the HTTP headers in lower-case.
@@ -210,7 +218,6 @@ seealso:
 - module: ansible.windows.win_uri
 author:
 - Romeo Theriault (@romeotheriault)
-extends_documentation_fragment: files
 '''
 
 EXAMPLES = r'''
@@ -398,6 +405,11 @@ msg:
   returned: always
   type: str
   sample: OK (unknown bytes)
+path:
+  description: destination file/path
+  returned: dest is defined
+  type: str
+  sample: /path/to/file.txt
 redirected:
   description: Whether the request was redirected.
   returned: on success
@@ -659,10 +671,6 @@ def main():
         add_file_common_args=True,
         mutually_exclusive=[['body', 'src']],
     )
-
-    if module.params.get('thirsty'):
-        module.deprecate('The alias "thirsty" has been deprecated and will be removed, use "force" instead',
-                         version='2.13', collection_name='ansible.builtin')
 
     url = module.params['url']
     body = module.params['body']

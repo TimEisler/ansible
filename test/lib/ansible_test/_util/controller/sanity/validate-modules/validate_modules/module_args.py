@@ -114,12 +114,12 @@ def get_ps_argument_spec(filename, collection):
     ps_dep_finder.scan_module(b_module_data, fqn=fqc_name)
 
     # For ps_argspec.ps1 to compile Ansible.Basic it also needs the AddType module_util.
-    ps_dep_finder._add_module((b"Ansible.ModuleUtils.AddType", ".psm1", None), wrapper=False)
+    ps_dep_finder._add_module(name=b"Ansible.ModuleUtils.AddType", ext=".psm1", fqn=None, optional=False, wrapper=False)
 
     util_manifest = json.dumps({
         'module_path': to_text(module_path, errors='surrogiate_or_strict'),
         'ansible_basic': ps_dep_finder.cs_utils_module["Ansible.Basic"]['path'],
-        'ps_utils': dict([(name, info['path']) for name, info in ps_dep_finder.ps_modules.items()]),
+        'ps_utils': {name: info['path'] for name, info in ps_dep_finder.ps_modules.items()}
     })
 
     script_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'ps_argspec.ps1')

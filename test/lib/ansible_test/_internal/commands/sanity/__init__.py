@@ -84,6 +84,7 @@ from ...test import (
     TestFailure,
     TestSkipped,
     TestMessage,
+    TestResult,
     calculate_best_confidence,
 )
 
@@ -96,6 +97,7 @@ from ...content_config import (
 )
 
 from ...host_configs import (
+    DockerConfig,
     PosixConfig,
     PythonConfig,
     VirtualPythonConfig,
@@ -121,11 +123,11 @@ COMMAND = 'sanity'
 SANITY_ROOT = os.path.join(ANSIBLE_TEST_CONTROLLER_ROOT, 'sanity')
 TARGET_SANITY_ROOT = os.path.join(ANSIBLE_TEST_TARGET_ROOT, 'sanity')
 
+created_venvs = []  # type: t.List[str]
 
-def command_sanity(args):
-    """
-    :type args: SanityConfig
-    """
+
+def command_sanity(args):  # type: (SanityConfig) -> None
+    """Run sanity tests."""
     create_result_directories(args)
 
     target_configs = t.cast(t.List[PosixConfig], args.targets)
@@ -278,6 +280,12 @@ def command_sanity(args):
 
             if isinstance(result, SanityFailure):
                 failed.append(result.test + options)
+
+    controller = args.controller
+
+    if created_venvs and isinstance(controller, DockerConfig) and controller.name == 'default' and not args.prime_venvs:
+        names = ', '.join(created_venvs)
+        display.warning(f'There following sanity test virtual environments are out-of-date in the "default" container: {names}')
 
     if failed:
         message = 'The %d sanity test(s) listed below (out of %d) failed. See error output above for details.\n%s' % (
@@ -597,33 +605,25 @@ class SanityIgnoreProcessor:
 
 class SanitySuccess(TestSuccess):
     """Sanity test success."""
-    def __init__(self, test, python_version=None):
-        """
-        :type test: str
-        :type python_version: str
-        """
+    def __init__(self, test, python_version=None):  # type: (str, t.Optional[str]) -> None
         super().__init__(COMMAND, test, python_version)
 
 
 class SanitySkipped(TestSkipped):
     """Sanity test skipped."""
-    def __init__(self, test, python_version=None):
-        """
-        :type test: str
-        :type python_version: str
-        """
+    def __init__(self, test, python_version=None):  # type: (str, t.Optional[str]) -> None
         super().__init__(COMMAND, test, python_version)
 
 
 class SanityFailure(TestFailure):
     """Sanity test failure."""
-    def __init__(self, test, python_version=None, messages=None, summary=None):
-        """
-        :type test: str
-        :type python_version: str
-        :type messages: list[SanityMessage]
-        :type summary: unicode
-        """
+    def __init__(
+            self,
+            test,  # type: str
+            python_version=None,  # type: t.Optional[str]
+            messages=None,  # type: t.Optional[t.List[SanityMessage]]
+            summary=None,  # type: t.Optional[str]
+    ):  # type: (...) -> None
         super().__init__(COMMAND, test, python_version, messages, summary)
 
 
@@ -800,13 +800,8 @@ class SanitySingleVersion(SanityTest, metaclass=abc.ABCMeta):
         return False
 
     @abc.abstractmethod
-    def test(self, args, targets, python):
-        """
-        :type args: SanityConfig
-        :type targets: SanityTargets
-        :type python: PythonConfig
-        :rtype: TestResult
-        """
+    def test(self, args, targets, python):  # type: (SanityConfig, SanityTargets, PythonConfig) -> TestResult
+        """Run the sanity test and return the result."""
 
     def load_processor(self, args):  # type: (SanityConfig) -> SanityIgnoreProcessor
         """Load the ignore processor for this sanity test."""
@@ -938,13 +933,8 @@ class SanityCodeSmellTest(SanitySingleVersion):
 
         return targets
 
-    def test(self, args, targets, python):
-        """
-        :type args: SanityConfig
-        :type targets: SanityTargets
-        :type python: PythonConfig
-        :rtype: TestResult
-        """
+    def test(self, args, targets, python):  # type: (SanityConfig, SanityTargets, PythonConfig) -> TestResult
+        """Run the sanity test and return the result."""
         cmd = [python.path, self.path]
 
         env = ansible_environment(args, color=False)
@@ -1018,12 +1008,8 @@ class SanityCodeSmellTest(SanitySingleVersion):
 class SanityVersionNeutral(SanityTest, metaclass=abc.ABCMeta):
     """Base class for sanity test plugins which are idependent of the python version being used."""
     @abc.abstractmethod
-    def test(self, args, targets):
-        """
-        :type args: SanityConfig
-        :type targets: SanityTargets
-        :rtype: TestResult
-        """
+    def test(self, args, targets):  # type: (SanityConfig, SanityTargets) -> TestResult
+        """Run the sanity test and return the result."""
 
     def load_processor(self, args):  # type: (SanityConfig) -> SanityIgnoreProcessor
         """Load the ignore processor for this sanity test."""
@@ -1038,13 +1024,8 @@ class SanityVersionNeutral(SanityTest, metaclass=abc.ABCMeta):
 class SanityMultipleVersion(SanityTest, metaclass=abc.ABCMeta):
     """Base class for sanity test plugins which should run on multiple python versions."""
     @abc.abstractmethod
-    def test(self, args, targets, python):
-        """
-        :type args: SanityConfig
-        :type targets: SanityTargets
-        :type python: PythonConfig
-        :rtype: TestResult
-        """
+    def test(self, args, targets, python):  # type: (SanityConfig, SanityTargets, PythonConfig) -> TestResult
+        """Run the sanity test and return the result."""
 
     def load_processor(self, args, python_version):  # type: (SanityConfig, str) -> SanityIgnoreProcessor
         """Load the ignore processor for this sanity test."""
@@ -1154,6 +1135,8 @@ def create_sanity_virtualenv(
             virtualenv_yaml = None
 
         write_json_file(meta_yaml, virtualenv_yaml)
+
+        created_venvs.append(f'{label}-{python.version}')
 
     # touch the marker to keep track of when the virtualenv was last used
     pathlib.Path(virtualenv_marker).touch()

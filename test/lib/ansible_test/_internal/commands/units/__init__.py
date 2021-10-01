@@ -92,10 +92,8 @@ class TestContext:
     module_utils = 'module_utils'
 
 
-def command_units(args):
-    """
-    :type args: UnitsConfig
-    """
+def command_units(args):  # type: (UnitsConfig) -> None
+    """Run unit tests."""
     handle_layout_messages(data_context().content.unit_messages)
 
     changes = get_changes_filter(args)
@@ -247,14 +245,11 @@ def command_units(args):
             '-p', 'no:cacheprovider',
             '-c', os.path.join(ANSIBLE_TEST_DATA_ROOT, 'pytest.ini'),
             '--junit-xml', os.path.join(ResultType.JUNIT.path, 'python%s-%s-units.xml' % (python.version, test_context)),
+            '--strict-markers',  # added in pytest 4.5.0
         ]
 
         if not data_context().content.collection:
             cmd.append('--durations=25')
-
-        if python.version != '2.6':
-            # added in pytest 4.5.0, which requires python 2.7+
-            cmd.append('--strict-markers')
 
         plugins = []
 

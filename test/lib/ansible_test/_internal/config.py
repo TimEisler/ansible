@@ -106,6 +106,8 @@ class EnvironmentConfig(CommonConfig):
         self.remote_stage = args.remote_stage  # type: t.Optional[str]
         self.remote_terminate = args.remote_terminate  # type: t.Optional[TerminateMode]
 
+        self.prime_containers = args.prime_containers  # type: bool
+
         self.requirements = args.requirements  # type: bool
 
         self.delegate_args = []  # type: t.List[str]
@@ -192,11 +194,7 @@ class EnvironmentConfig(CommonConfig):
 
 class TestConfig(EnvironmentConfig):
     """Configuration common to all test commands."""
-    def __init__(self, args, command):
-        """
-        :type args: any
-        :type command: str
-        """
+    def __init__(self, args, command):  # type: (t.Any, str) -> None
         super().__init__(args, command)
 
         self.coverage = args.coverage  # type: bool
@@ -237,10 +235,7 @@ class TestConfig(EnvironmentConfig):
 
 class ShellConfig(EnvironmentConfig):
     """Configuration for the shell command."""
-    def __init__(self, args):
-        """
-        :type args: any
-        """
+    def __init__(self, args):  # type: (t.Any) -> None
         super().__init__(args, 'shell')
 
         self.raw = args.raw  # type: bool
@@ -248,10 +243,7 @@ class ShellConfig(EnvironmentConfig):
 
 class SanityConfig(TestConfig):
     """Configuration for the sanity command."""
-    def __init__(self, args):
-        """
-        :type args: any
-        """
+    def __init__(self, args):  # type: (t.Any) -> None
         super().__init__(args, 'sanity')
 
         self.test = args.test  # type: t.List[str]
@@ -276,11 +268,7 @@ class SanityConfig(TestConfig):
 
 class IntegrationConfig(TestConfig):
     """Configuration for the integration command."""
-    def __init__(self, args, command):
-        """
-        :type args: any
-        :type command: str
-        """
+    def __init__(self, args, command):  # type: (t.Any, str) -> None
         super().__init__(args, command)
 
         self.start_at = args.start_at  # type: str
@@ -324,28 +312,19 @@ TIntegrationConfig = t.TypeVar('TIntegrationConfig', bound=IntegrationConfig)
 
 class PosixIntegrationConfig(IntegrationConfig):
     """Configuration for the posix integration command."""
-    def __init__(self, args):
-        """
-        :type args: any
-        """
+    def __init__(self, args):  # type: (t.Any) -> None
         super().__init__(args, 'integration')
 
 
 class WindowsIntegrationConfig(IntegrationConfig):
     """Configuration for the windows integration command."""
-    def __init__(self, args):
-        """
-        :type args: any
-        """
+    def __init__(self, args):  # type: (t.Any) -> None
         super().__init__(args, 'windows-integration')
 
 
 class NetworkIntegrationConfig(IntegrationConfig):
     """Configuration for the network integration command."""
-    def __init__(self, args):
-        """
-        :type args: any
-        """
+    def __init__(self, args):  # type: (t.Any) -> None
         super().__init__(args, 'network-integration')
 
         self.testcase = args.testcase  # type: str
@@ -353,10 +332,7 @@ class NetworkIntegrationConfig(IntegrationConfig):
 
 class UnitsConfig(TestConfig):
     """Configuration for the units command."""
-    def __init__(self, args):
-        """
-        :type args: any
-        """
+    def __init__(self, args):  # type: (t.Any) -> None
         super().__init__(args, 'units')
 
         self.collect_only = args.collect_only  # type: bool
