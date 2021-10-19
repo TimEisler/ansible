@@ -319,6 +319,9 @@ class CallbackModule(CallbackBase):
         label = self._get_item_label(included_file._vars)
         if label:
             msg += " => (item=%s)" % label
+        reverse_attr = included_file._task.args.get('reverse', {})
+        if reverse_attr:
+            msg += ' (reversed)'
         self._display.display(msg, color=C.COLOR_SKIP)
 
     def v2_playbook_on_stats(self, stats):
