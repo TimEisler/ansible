@@ -104,6 +104,17 @@ def test_included_file_instantiation():
     assert inc_file._vars == {}
     assert inc_file._task is None
 
+def test_included_file_instantiation_reverse():
+    filename = 'somefile.yml'
+
+    inc_file = IncludedFile(filename=filename, args={'reverse': True}, vars={}, task=None)
+
+    assert isinstance(inc_file, IncludedFile)
+    assert inc_file._filename == filename
+    assert inc_file._args == {'reverse': True}
+    assert inc_file._vars == {}
+    assert inc_file._task is None
+
 
 def test_process_include_results(mock_iterator, mock_variable_manager):
     hostname = "testhost1"

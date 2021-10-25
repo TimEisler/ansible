@@ -276,6 +276,24 @@ class TestLoadListOfTasks(unittest.TestCase, MixinForMocks):
         self.assertIsInstance(res[0], Task)
         self.assertEqual(res[0].args['_raw_params'], '/dev/null/includes/static_test_include.yml')
 
+
+    def test_one_include_reverse(self):
+        ds = [{
+            'include_tasks': '/dev/null/includes/static_test_include.yml',
+            '  reverse: True',
+        }]
+        # a_block = Block()
+        ti_ds = {'include_tasks': '/dev/null/includes/ssdftatic_test_include.yml', '  reverse: True',}
+        a_task_include = TaskInclude()
+        ti = a_task_include.load(ti_ds)
+        res = helpers.load_list_of_tasks(ds, play=self.mock_play,
+                                         block=ti,
+                                         variable_manager=self.mock_variable_manager, loader=self.fake_include_loader)
+        self._assert_is_task_list_or_blocks(res)
+        self.assertIsInstance(res[0], Task)
+        self.assertEqual(res[0].args['_raw_params'], '/dev/null/includes/static_test_include.yml')
+
+
     # TODO/FIXME: This two get stuck trying to make a mock_block into a TaskInclude
 #    def test_one_include(self):
 #        ds = [{'include': 'other_test_include.yml'}]
