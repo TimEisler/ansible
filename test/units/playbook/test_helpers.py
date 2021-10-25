@@ -278,12 +278,14 @@ class TestLoadListOfTasks(unittest.TestCase, MixinForMocks):
 
 
     def test_one_include_reverse(self):
+        '''
+        This test verifies that new parameter 'reverse' is allowed on the include_tasks statement.
+        '''
         ds = [{
-            'include_tasks': '/dev/null/includes/static_test_include.yml',
-            '  reverse: True',
+            'include_tasks': {'file': '/dev/null/includes/static_test_include.yml', 'reverse': True, 'apply': {'vars': [{'state': 'absent'}]}},
         }]
         # a_block = Block()
-        ti_ds = {'include_tasks': '/dev/null/includes/ssdftatic_test_include.yml', '  reverse: True',}
+        ti_ds = {'include_tasks': {'file': '/dev/null/includes/ssdftatic_test_include.yml', 'reverse': True, 'apply': {'vars': [{'state': 'absent'}]}} }
         a_task_include = TaskInclude()
         ti = a_task_include.load(ti_ds)
         res = helpers.load_list_of_tasks(ds, play=self.mock_play,
