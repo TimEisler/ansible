@@ -1,0 +1,23 @@
+- name: Task 1 - Display starting install message.
+  debug:
+    msg: "Starting installation of the {{ pip_pkgname }} Python package."
+  when: ansible_failed_result is not defined
+
+- name: Task 2 - Cause a failure
+  fail:
+  when: ansible_failed_result is not defined
+
+- name: Task 3 - Install or remove the pip pkg as directed by the play.
+  ansible.builtin.pip:
+    name: "{{ pip_pkgname }}"
+    state: "{{ state | default('present') }}"
+  become: true
+  register: result_pip
+
+  when: ansible_failed_result is defined
+
+- name: Task 4 - Display starting rescue message.
+
+  debug:
+    msg: "Starting rescue of the failed installation of the {{ pip_pkgname }} Python package."
+  when: ansible_failed_result is defined

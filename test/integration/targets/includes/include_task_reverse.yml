@@ -1,0 +1,31 @@
+- hosts: localhost
+  gather_facts: yes
+  vars:
+    pip_pkgname: 'bottle'
+  tasks:
+    - block:
+      - name: Block. Failure is expected
+        include_tasks:
+          file: ./block_rescue_includable_tasks.yml
+      rescue:
+      - name: Rescue. Reversal is expected 
+        include_tasks:
+          file: ./block_rescue_includable_tasks.yml
+          reverse: true
+          apply:
+            vars:
+              - state: absent
+      always:
+      - name: Always. Reversal is not expected 
+        include_tasks:
+          file: ./always_includable_tasks.yml
+
+  post_tasks:
+  - name: Post-task assertions.
+    assert:
+      that:
+      - ansible_failed_task is defined
+      - ansible_failed_result is defined
+      - ansible_failed_result is defined
+      - pkg_check is defined and pkg_check|length==0
+

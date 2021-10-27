@@ -1,0 +1,12 @@
+- hosts: localhost
+  gather_facts: yes
+  roles:
+    - setup_pexpect
+
+  tasks:
+    - name: Dummy task
+      block:
+        - name: Say hello.
+          debug:
+            msg: "Hello. It is {{ ansible_date_time }}"
+      when: ansible_distribution == 'VMware Photon OS'

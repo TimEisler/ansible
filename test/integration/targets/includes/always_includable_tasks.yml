@@ -1,0 +1,16 @@
+- name: Task 1 - Display a progress message.
+  debug:
+    msg: "Checking installation of the {{ pip_pkgname }} Python package."
+
+# ansible.builtin.shell is used because ansible.builtin.pip provides no way to merely list pkgs.
+- name: Task 2 - Check the installation status of the pip pkg.
+  ansible.builtin.shell:
+    cmd: "{{ ansible_python['executable'] }} -m pip list"
+  become: true
+  changed_when: False
+  register: result_pip
+
+- name: Task 3 - Prepare the output of the pip list cmd for use in an assertion.
+  set_fact:
+    pkg_check: "{{ result_pip.stdout_lines | select('search', pip_pkgname) | list }}"
+  when: result_pip is defined
