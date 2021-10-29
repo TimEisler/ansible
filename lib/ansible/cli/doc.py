@@ -1,9 +1,14 @@
+#!/usr/bin/env python
 # Copyright: (c) 2014, James Tanner <tanner.jc@gmail.com>
 # Copyright: (c) 2018, Ansible Project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+# PYTHON_ARGCOMPLETE_OK
 
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
+
+# ansible.cli needs to be imported first, to ensure the source bin/* scripts run that code first
+from ansible.cli import CLI
 
 import datetime
 import json
@@ -19,16 +24,15 @@ import ansible.plugins.loader as plugin_loader
 
 from ansible import constants as C
 from ansible import context
-from ansible.cli import CLI
 from ansible.cli.arguments import option_helpers as opt_help
 from ansible.collections.list import list_collection_dirs
 from ansible.errors import AnsibleError, AnsibleOptionsError, AnsibleParserError
 from ansible.module_utils._text import to_native, to_text
-from ansible.module_utils.common._collections_compat import Container, Sequence
+from ansible.module_utils.common._collections_compat import Sequence
 from ansible.module_utils.common.json import AnsibleJSONEncoder
 from ansible.module_utils.common.yaml import yaml_dump
 from ansible.module_utils.compat import importlib
-from ansible.module_utils.six import iteritems, string_types
+from ansible.module_utils.six import string_types
 from ansible.parsing.plugin_docs import read_docstub
 from ansible.parsing.utils.yaml import from_yaml
 from ansible.parsing.yaml.dumper import AnsibleDumper
@@ -335,6 +339,8 @@ class DocCLI(CLI, RoleMixin):
         provides a printout of their DOCUMENTATION strings,
         and it can create a short "snippet" which can be pasted into a playbook.  '''
 
+    name = 'ansible-doc'
+
     # default ignore list for detailed views
     IGNORE = ('module', 'docuri', 'version_added', 'short_description', 'now_date', 'plainexamples', 'returndocs', 'collection')
 
@@ -493,7 +499,7 @@ class DocCLI(CLI, RoleMixin):
         text = []
 
         for role in sorted(roles):
-            for entry_point, desc in iteritems(list_json[role]['entry_points']):
+            for entry_point, desc in list_json[role]['entry_points'].items():
                 if len(desc) > linelimit:
                     desc = desc[:linelimit] + '...'
                 text.append("%-*s %-*s %s" % (max_role_len, role,
@@ -1383,3 +1389,11 @@ def _do_lookup_snippet(doc):
     text.append(snippet)
 
     return text
+
+
+def main(args=None):
+    DocCLI.cli_executor(args)
+
+
+if __name__ == '__main__':
+    main()

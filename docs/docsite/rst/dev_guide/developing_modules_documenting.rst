@@ -217,10 +217,19 @@ All fields in the ``DOCUMENTATION`` block are lower-case. All fields are require
         - ref: aci_guide
           description: Detailed information on how to manage your ACI infrastructure using Ansible.
 
+        # Reference by rST documentation anchor (with custom title)
+        - ref: The official Ansible ACI guide <aci_guide>
+          description: Detailed information on how to manage your ACI infrastructure using Ansible.
+
         # Reference by Internet resource
         - name: APIC Management Information Model reference
           description: Complete reference of the APIC object model.
           link: https://developer.cisco.com/docs/apic-mim-ref/
+
+
+  * If you use ``ref:`` to link to an anchor that is not associated with a title, you must add a title to the ref for the link to work correctly.
+  * You can link to non-module plugins with ``ref:`` using the rST anchor, but plugin and module anchors are never associated with a title, so you must supply a title when you link to them. For example ``ref: namespace.collection.plugin_name lookup plugin  <ansible_collections.namespace.collection.plugin_name_lookup>``.
+
 
 :notes:
 
@@ -325,7 +334,9 @@ EXAMPLES block
 
 After the shebang, the UTF-8 coding, the copyright line, the license section, and the ``DOCUMENTATION`` block comes the ``EXAMPLES`` block. Here you show users how your module works with real-world examples in multi-line plain-text YAML format. The best examples are ready for the user to copy and paste into a playbook. Review and update your examples with every change to your module.
 
-Per playbook best practices, each example should include a ``name:`` line::
+Per playbook best practices, each example should include a ``name:`` line:
+
+.. code-block:: text
 
     EXAMPLES = r'''
     - name: Ensure foo is installed
@@ -371,7 +382,9 @@ Otherwise, for each value returned, provide the following fields. All fields are
   :contains:
     Optional. To describe nested return values, set ``type: dict``, or ``type: list``/``elements: dict``, or if you really have to, ``type: complex``, and repeat the elements above for each sub-field.
 
-Here are two example ``RETURN`` sections, one with three simple fields and one with a complex nested field::
+Here are two example ``RETURN`` sections, one with three simple fields and one with a complex nested field:
+
+.. code-block:: text
 
     RETURN = r'''
     dest:

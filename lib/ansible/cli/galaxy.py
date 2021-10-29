@@ -1,9 +1,14 @@
+#!/usr/bin/env python
 # Copyright: (c) 2013, James Cammarata <jcammarata@ansible.com>
 # Copyright: (c) 2018-2021, Ansible Project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+# PYTHON_ARGCOMPLETE_OK
 
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
+
+# ansible.cli needs to be imported first, to ensure the source bin/* scripts run that code first
+from ansible.cli import CLI
 
 import json
 import os.path
@@ -17,7 +22,6 @@ from yaml.error import YAMLError
 
 import ansible.constants as C
 from ansible import context
-from ansible.cli import CLI
 from ansible.cli.arguments import option_helpers as opt_help
 from ansible.errors import AnsibleError, AnsibleOptionsError
 from ansible.galaxy import Galaxy, get_collections_galaxy_meta_info
@@ -133,6 +137,8 @@ def _get_collection_widths(collections):
 
 class GalaxyCLI(CLI):
     '''command to manage Ansible roles in shared repositories, the default of which is Ansible Galaxy *https://galaxy.ansible.com*.'''
+
+    name = 'ansible-galaxy'
 
     SKIP_INFO_KEYS = ("name", "description", "readme_html", "related", "summary_fields", "average_aw_composite", "average_aw_score", "url")
 
@@ -370,8 +376,8 @@ class GalaxyCLI(CLI):
                                           'found on the server and the installed copy. This does not verify dependencies.')
         verify_parser.set_defaults(func=self.execute_verify)
 
-        verify_parser.add_argument('args', metavar='{0}_name'.format(galaxy_type), nargs='*', help='The collection(s) name or '
-                                   'path/url to a tar.gz collection artifact. This is mutually exclusive with --requirements-file.')
+        verify_parser.add_argument('args', metavar='{0}_name'.format(galaxy_type), nargs='*', help='The installed collection(s) name. '
+                                   'This is mutually exclusive with --requirements-file.')
         verify_parser.add_argument('-i', '--ignore-errors', dest='ignore_errors', action='store_true', default=False,
                                    help='Ignore errors during verification and continue with the next specified collection.')
         verify_parser.add_argument('--offline', dest='offline', action='store_true', default=False,
@@ -1679,3 +1685,11 @@ class GalaxyCLI(CLI):
         display.display(resp['status'])
 
         return True
+
+
+def main(args=None):
+    GalaxyCLI.cli_executor(args)
+
+
+if __name__ == '__main__':
+    main()

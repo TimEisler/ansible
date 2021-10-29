@@ -1,8 +1,13 @@
+#!/usr/bin/env python
 # Copyright: (c) 2017, Ansible Project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+# PYTHON_ARGCOMPLETE_OK
 
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
+
+# ansible.cli needs to be imported first, to ensure the source bin/* scripts run that code first
+from ansible.cli import CLI
 
 import os
 import shlex
@@ -13,14 +18,12 @@ from ansible import context
 import ansible.plugins.loader as plugin_loader
 
 from ansible import constants as C
-from ansible.cli import CLI
 from ansible.cli.arguments import option_helpers as opt_help
 from ansible.config.manager import ConfigManager, Setting
 from ansible.errors import AnsibleError, AnsibleOptionsError
 from ansible.module_utils._text import to_native, to_text, to_bytes
 from ansible.module_utils.common._collections_compat import Mapping
 from ansible.module_utils.six import string_types
-from ansible.module_utils.six.moves import shlex_quote
 from ansible.parsing.quoting import is_quoted
 from ansible.parsing.yaml.dumper import AnsibleDumper
 from ansible.utils.color import stringc
@@ -32,6 +35,8 @@ display = Display()
 
 class ConfigCLI(CLI):
     """ Config command line class """
+
+    name = 'ansible-config'
 
     def __init__(self, args, callback=None):
 
@@ -257,7 +262,7 @@ class ConfigCLI(CLI):
                                 # list of other stuff
                                 default = '%s' % to_native(default)
                     if isinstance(default, string_types) and not is_quoted(default):
-                        default = shlex_quote(default)
+                        default = shlex.quote(default)
                 elif default is None:
                     default = ''
 
@@ -469,3 +474,11 @@ class ConfigCLI(CLI):
             text = self._get_plugin_configs(context.CLIARGS['type'], context.CLIARGS['args'])
 
         self.pager(to_text('\n'.join(text), errors='surrogate_or_strict'))
+
+
+def main(args=None):
+    ConfigCLI.cli_executor(args)
+
+
+if __name__ == '__main__':
+    main()

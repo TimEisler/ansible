@@ -1,14 +1,20 @@
+#!/usr/bin/env python
 # Copyright: (c) 2012, Michael DeHaan <michael.dehaan@gmail.com>
 # Copyright: (c) 2018, Ansible Project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+# PYTHON_ARGCOMPLETE_OK
 
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
+
+# ansible.cli needs to be imported first, to ensure the source bin/* scripts run that code first
+from ansible.cli import CLI
 
 import datetime
 import os
 import platform
 import random
+import shlex
 import shutil
 import socket
 import sys
@@ -16,11 +22,9 @@ import time
 
 from ansible import constants as C
 from ansible import context
-from ansible.cli import CLI
 from ansible.cli.arguments import option_helpers as opt_help
 from ansible.errors import AnsibleOptionsError
 from ansible.module_utils._text import to_native, to_text
-from ansible.module_utils.six.moves import shlex_quote
 from ansible.plugins.loader import module_loader
 from ansible.utils.cmd_functions import run_cmd
 from ansible.utils.display import Display
@@ -39,6 +43,8 @@ class PullCLI(CLI):
         Usage of the 'fetch' module to retrieve logs from ansible-pull runs would be an
         excellent way to gather and analyze remote logs from ansible-pull.
     '''
+
+    name = 'ansible-pull'
 
     DEFAULT_REPO_TYPE = 'git'
     DEFAULT_PLAYBOOK = 'local.yml'
@@ -173,7 +179,7 @@ class PullCLI(CLI):
         if not inv_opts:
             inv_opts = " -i localhost, "
             # avoid interpreter discovery since we already know which interpreter to use on localhost
-            inv_opts += '-e %s ' % shlex_quote('ansible_python_interpreter=%s' % sys.executable)
+            inv_opts += '-e %s ' % shlex.quote('ansible_python_interpreter=%s' % sys.executable)
 
         # SCM specific options
         if context.CLIARGS['module_name'] == 'git':
@@ -228,7 +234,7 @@ class PullCLI(CLI):
                                                               context.CLIARGS['module_name'],
                                                               repo_opts, limit_opts)
         for ev in context.CLIARGS['extra_vars']:
-            cmd += ' -e %s' % shlex_quote(ev)
+            cmd += ' -e %s' % shlex.quote(ev)
 
         # Nap?
         if context.CLIARGS['sleep']:
@@ -263,7 +269,7 @@ class PullCLI(CLI):
                 cmd += " --vault-id=%s" % vault_id
 
         for ev in context.CLIARGS['extra_vars']:
-            cmd += ' -e %s' % shlex_quote(ev)
+            cmd += ' -e %s' % shlex.quote(ev)
         if context.CLIARGS['become_ask_pass']:
             cmd += ' --ask-become-pass'
         if context.CLIARGS['skip_tags']:
@@ -341,3 +347,11 @@ class PullCLI(CLI):
             if playbook is None:
                 display.warning("\n".join(errors))
             return playbook
+
+
+def main(args=None):
+    PullCLI.cli_executor(args)
+
+
+if __name__ == '__main__':
+    main()

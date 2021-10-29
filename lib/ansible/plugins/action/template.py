@@ -65,18 +65,6 @@ class ActionModule(ActionBase):
         comment_end_string = self._task.args.get('comment_end_string', None)
         output_encoding = self._task.args.get('output_encoding', 'utf-8') or 'utf-8'
 
-        # Option `lstrip_blocks' was added in Jinja2 version 2.7.
-        if lstrip_blocks:
-            try:
-                import jinja2.defaults
-            except ImportError:
-                raise AnsibleError('Unable to import Jinja2 defaults for determining Jinja2 features.')
-
-            try:
-                jinja2.defaults.LSTRIP_BLOCKS
-            except AttributeError:
-                raise AnsibleError("Option `lstrip_blocks' is only available in Jinja2 versions >=2.7")
-
         wrong_sequences = ["\\n", "\\r", "\\r\\n"]
         allowed_sequences = ["\n", "\r", "\r\n"]
 
@@ -133,21 +121,14 @@ class ActionModule(ActionBase):
                 temp_vars = task_vars.copy()
                 temp_vars.update(generate_ansible_template_vars(self._task.args.get('src', None), source, dest))
 
-                # force templar to use AnsibleEnvironment to prevent issues with native types
-                # https://github.com/ansible/ansible/issues/46169
-                templar = self._templar.copy_with_new_env(environment_class=AnsibleEnvironment,
-                                                          searchpath=searchpath,
-                                                          newline_sequence=newline_sequence,
-                                                          block_start_string=block_start_string,
-                                                          block_end_string=block_end_string,
-                                                          variable_start_string=variable_start_string,
-                                                          variable_end_string=variable_end_string,
-                                                          comment_start_string=comment_start_string,
-                                                          comment_end_string=comment_end_string,
-                                                          trim_blocks=trim_blocks,
-                                                          lstrip_blocks=lstrip_blocks,
-                                                          available_variables=temp_vars)
-                resultant = templar.do_template(template_data, preserve_trailing_newlines=True, escape_backslashes=False)
+                # force jinja2_native=False to prevent issues with native types: https://github.com/ansible/ansible/issues/46169
+                with self._templar.set_temporary_context(searchpath=searchpath, newline_sequence=newline_sequence,
+                                                         block_start_string=block_start_string, block_end_string=block_end_string,
+                                                         variable_start_string=variable_start_string, variable_end_string=variable_end_string,
+                                                         comment_start_string=comment_start_string, comment_end_string=comment_end_string,
+                                                         trim_blocks=trim_blocks, lstrip_blocks=lstrip_blocks,
+                                                         available_variables=temp_vars, jinja2_native=False):
+                    resultant = self._templar.do_template(template_data, preserve_trailing_newlines=True, escape_backslashes=False)
             except AnsibleAction:
                 raise
             except Exception as e:
