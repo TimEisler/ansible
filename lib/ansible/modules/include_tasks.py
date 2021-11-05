@@ -29,6 +29,13 @@ options:
       - Accepts a hash of task keywords (e.g. C(tags), C(become)) that will be applied to the tasks within the include.
     type: str
     version_added: '2.7'
+  reverse:
+    description:
+      - Reverse the tasks defined in the included yml file so that rescue and block can use the same file.
+      - The included yml file needs to be written so that the task smake sense for block and the reversed tasks make sense for rescue.
+      - See EXAMPLES below.
+    type: bool
+    version_added: 'tbd'
   free-form:
     description:
       - |
@@ -92,6 +99,69 @@ EXAMPLES = r'''
         - install
   tags:
     - always
+
+- name: Execute tasks in the included file in the order written for block but in reverse order for rescue.
+- hosts: all
+  gather_facts: yes
+  vars:
+    pip_pkgname: 'bottle'
+    path: '/usr/local/{{ pip_pkgname }}'
+    marker_file_name: '{{ pip_pkgname }}_installed.txt'
+
+  tasks:
+    - block:
+      - name: Block. Reversal is not expected
+        include_tasks:
+          file: ./shared_task_file.yml
+      rescue:
+      - name: Rescue. Reversal is expected
+        include_tasks:
+          file: ./shared_task_file.yml
+          reverse: true
+          apply:
+            vars:
+              - state: absent
+
+shared_task_file.yml for the playbook above:
+- name: Task 1 - Display starting install message.
+  debug:
+    msg: "Starting installation of the {{ pip_pkgname }} Python package."
+  when: ansible_failed_result is not defined
+
+- name: Task 2 - Check marker file
+  stat:
+    path: "{{ path }}/{{ marker_file_name }}"
+  register: marker_file
+
+- name: Task 3 - Manage the pip pkg as directed by the play.
+  ansible.builtin.pip:
+    name: "{{ pip_pkgname }}"
+    state: "{{ state | default('present') }}"
+  become: true
+  register: result_pip
+
+- name: Task 4 - Manage marker directory.
+  ansible.builtin.file:
+    path: "{{ path }}"
+    state: "{{ state | default('directory') }}"
+  become: true
+  when: ansible_failed_result is defined or (result_pip.failed is defined and not result_pip.failed)
+
+- name: Task 5 - Manage marker file
+  ansible.builtin.file:
+    path: "{{ path }}/{{ marker_file }}"
+    state: "{{ state | default('touch') }}"
+  become: true
+  when: ansible_failed_result is defined or (not marker_file.stat.exists and result_pip.failed is defined and not result_pip.failed)
+
+- name: Test case - Cause a failure in block
+  fail:
+  when: ansible_failed_result is not defined
+
+- name: Task 6 - Display starting rescue message.
+  debug:
+    msg: "Starting rescue of the failed installation of the {{ pip_pkgname }} Python package."
+  when: ansible_failed_result is defined
 '''
 
 RETURN = r'''
