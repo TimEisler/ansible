@@ -1,0 +1,2 @@
+minor_changes:
+  - "include_tasks - add reverse keyword (https://github.com/ansible/proposals/issues/201)"
