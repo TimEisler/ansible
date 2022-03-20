@@ -21,10 +21,6 @@ from ...constants import (
     REMOTE_ONLY_PYTHON_VERSIONS,
 )
 
-from ...io import (
-    write_text_file,
-)
-
 from ...test import (
     TestResult,
 )
@@ -40,7 +36,6 @@ from ...util import (
     parse_to_list_of_dict,
     is_subdir,
     ANSIBLE_TEST_TOOLS_ROOT,
-    ANSIBLE_TEST_TARGET_ROOT,
 )
 
 from ...util_common import (
@@ -73,6 +68,10 @@ from ...host_configs import (
     PythonConfig,
 )
 
+from ...venv import (
+    get_virtualenv_version,
+)
+
 
 def _get_module_test(module_restrictions):  # type: (bool) -> t.Callable[[str], bool]
     """Create a predicate which tests whether a path can be used by modules or not."""
@@ -87,8 +86,17 @@ class ImportTest(SanityMultipleVersion):
     """Sanity test for proper import exception handling."""
     def filter_targets(self, targets):  # type: (t.List[TestTarget]) -> t.List[TestTarget]
         """Return the given list of test targets, filtered to include only those relevant for the test."""
+        if data_context().content.is_ansible:
+            # all of ansible-core must pass the import test, not just plugins/modules
+            # modules/module_utils will be tested using the module context
+            # everything else will be tested using the plugin context
+            paths = ['lib/ansible']
+        else:
+            # only plugins/modules must pass the import test for collections
+            paths = list(data_context().content.plugin_paths.values())
+
         return [target for target in targets if os.path.splitext(target.path)[1] == '.py' and
-                any(is_subdir(target.path, path) for path in data_context().content.plugin_paths.values())]
+                any(is_subdir(target.path, path) for path in paths)]
 
     @property
     def needs_pypi(self):  # type: () -> bool
@@ -100,21 +108,22 @@ class ImportTest(SanityMultipleVersion):
 
         paths = [target.path for target in targets.include]
 
-        if python.version.startswith('2.'):
+        if python.version.startswith('2.') and (get_virtualenv_version(args, python.path) or (0,)) < (13,):
             # hack to make sure that virtualenv is available under Python 2.x
             # on Python 3.x we can use the built-in venv
+            # version 13+ is required to use the `--no-wheel` option
             try:
                 install_requirements(args, python, virtualenv=True, controller=False)  # sanity (import)
             except PipUnavailableError as ex:
-                display.warning(ex)
+                display.warning(str(ex))
 
         temp_root = os.path.join(ResultType.TMP.path, 'sanity', 'import')
 
         messages = []
 
-        for import_type, test, controller in (
-                ('module', _get_module_test(True), False),
-                ('plugin', _get_module_test(False), True),
+        for import_type, test in (
+                ('module', _get_module_test(True)),
+                ('plugin', _get_module_test(False)),
         ):
             if import_type == 'plugin' and python.version in REMOTE_ONLY_PYTHON_VERSIONS:
                 continue
@@ -124,7 +133,7 @@ class ImportTest(SanityMultipleVersion):
             if not data and not args.prime_venvs:
                 continue
 
-            virtualenv_python = create_sanity_virtualenv(args, python, f'{self.name}.{import_type}', ansible=controller, coverage=args.coverage, minimize=True)
+            virtualenv_python = create_sanity_virtualenv(args, python, f'{self.name}.{import_type}', coverage=args.coverage, minimize=True)
 
             if not virtualenv_python:
                 display.warning(f'Skipping sanity test "{self.name}" on Python {python.version} due to missing virtual environment support.')
@@ -135,9 +144,6 @@ class ImportTest(SanityMultipleVersion):
             if virtualenv_yaml is False:
                 display.warning(f'Sanity test "{self.name}" ({import_type}) on Python {python.version} may be slow due to missing libyaml support in PyYAML.')
 
-            if args.prime_venvs:
-                continue
-
             env = ansible_environment(args, color=False)
 
             env.update(
@@ -146,7 +152,7 @@ class ImportTest(SanityMultipleVersion):
             )
 
             if data_context().content.collection:
-                external_python = create_sanity_virtualenv(args, args.controller_python, self.name, context=self.name)
+                external_python = create_sanity_virtualenv(args, args.controller_python, self.name)
 
                 env.update(
                     SANITY_COLLECTION_FULL_NAME=data_context().content.collection.full_name,
@@ -155,6 +161,9 @@ class ImportTest(SanityMultipleVersion):
                     ANSIBLE_CONTROLLER_MIN_PYTHON_VERSION=CONTROLLER_MIN_PYTHON_VERSION,
                     PYTHONPATH=':'.join((get_ansible_test_python_path(), env["PYTHONPATH"])),
                 )
+
+            if args.prime_venvs:
+                continue
 
             display.info(import_type + ': ' + data, verbosity=4)
 
@@ -205,11 +214,4 @@ def get_ansible_test_python_path():  # type: () -> str
     The temporary directory created will be cached for the lifetime of the process and cleaned up at exit.
     """
     python_path = create_temp_dir(prefix='ansible-test-')
-    ansible_test_path = os.path.join(python_path, 'ansible_test')
-
-    # legacy collection loader required by all python versions not supported by the controller
-    write_text_file(os.path.join(ansible_test_path, '__init__.py'), '', True)
-    write_text_file(os.path.join(ansible_test_path, '_internal', '__init__.py'), '', True)
-    os.symlink(os.path.join(ANSIBLE_TEST_TARGET_ROOT, 'legacy_collection_loader'), os.path.join(ansible_test_path, '_internal', 'legacy_collection_loader'))
-
     return python_path

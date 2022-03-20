@@ -13,7 +13,9 @@ Testing your collection ensures that your code works well and integrates well wi
 Testing tools
 =============
 
-The main tool for testing collections is ``ansible-test``, Ansible's testing tool described in :ref:`developing_testing`. You can run several compile and sanity checks, as well as run unit and integration tests for plugins using ``ansible-test``. When you test collections, test against the ansible-core version(s) you are targeting.
+The main tool for testing collections is ``ansible-test``, Ansible's testing tool described in :ref:`developing_testing` and provided by both the ``ansible`` and ``ansible-core`` packages.
+
+You can run several compile and sanity checks, as well as run unit and integration tests for plugins using ``ansible-test``. When you test collections, test against the ansible-core version(s) you are targeting.
 
 You must always execute ``ansible-test`` from the root directory of a collection. You can run ``ansible-test`` in Docker containers without installing any special requirements. The Ansible team uses this approach in Azure Pipelines both in the ansible/ansible GitHub repository and in the large community collections such as `community.general <https://github.com/ansible-collections/community.general/>`_ and `community.network <https://github.com/ansible-collections/community.network/>`_. The examples below demonstrate running tests in Docker containers.
 
@@ -65,13 +67,13 @@ You can write two different kinds of integration tests:
 
 For examples, see the `integration tests in community.general <https://github.com/ansible-collections/community.general/tree/master/tests/integration/targets/>`_. See also :ref:`testing_integration` for more details.
 
-Since integration tests can install requirements, and set-up, start and stop services, we recommended running them in docker containers or otherwise restricted environments whenever possible. By default, ``ansible-test`` supports Docker images for several operating systems. See the `list of supported docker images <https://github.com/ansible/ansible/blob/devel/test/lib/ansible_test/_data/completion/docker.txt>`_ for all options. Use the ``default`` image mainly for platform-independent integration tests, such as those for cloud modules. The following examples use the ``centos8`` image.
+Since integration tests can install requirements, and set-up, start and stop services, we recommended running them in docker containers or otherwise restricted environments whenever possible. By default, ``ansible-test`` supports Docker images for several operating systems. See the `list of supported docker images <https://github.com/ansible/ansible/blob/devel/test/lib/ansible_test/_data/completion/docker.txt>`_ for all options. Use the ``default`` image mainly for platform-independent integration tests, such as those for cloud modules. The following examples use the ``fedora35`` image.
 
 To execute all integration tests for a collection:
 
 .. code-block:: shell-session
 
-    ansible-test integration --docker centos8 -v
+    ansible-test integration --docker fedora35 -v
 
 If you want more detailed output, run the command with ``-vvv`` instead of ``-v``. Alternatively, specify ``--retry-on-error`` to automatically re-run failed tests with higher verbosity levels.
 
@@ -79,7 +81,7 @@ To execute only the integration tests in a specific directory:
 
 .. code-block:: shell-session
 
-    ansible-test integration --docker centos8 -v connection_bar
+    ansible-test integration --docker fedora35 -v connection_bar
 
 You can specify multiple target names. Each target name is the name of a directory in ``tests/integration/targets/``.
 

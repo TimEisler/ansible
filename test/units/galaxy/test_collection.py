@@ -15,7 +15,7 @@ import uuid
 
 from hashlib import sha256
 from io import BytesIO
-from units.compat.mock import MagicMock, mock_open, patch
+from mock import MagicMock, mock_open, patch
 
 import ansible.constants as C
 from ansible import context
@@ -218,7 +218,49 @@ def server_config(monkeypatch):
 
 
 @pytest.mark.parametrize('global_ignore_certs', [True, False])
-def test_validate_certs(global_ignore_certs, server_config, monkeypatch):
+def test_validate_certs(global_ignore_certs, monkeypatch):
+    cli_args = [
+        'ansible-galaxy',
+        'collection',
+        'install',
+        'namespace.collection:1.0.0',
+    ]
+    if global_ignore_certs:
+        cli_args.append('--ignore-certs')
+
+    galaxy_cli = GalaxyCLI(args=cli_args)
+    mock_execute_install = MagicMock()
+    monkeypatch.setattr(galaxy_cli, '_execute_install_collection', mock_execute_install)
+    galaxy_cli.run()
+
+    assert len(galaxy_cli.api_servers) == 1
+    assert galaxy_cli.api_servers[0].validate_certs is not global_ignore_certs
+
+
+@pytest.mark.parametrize('global_ignore_certs', [True, False])
+def test_validate_certs_with_server_url(global_ignore_certs, monkeypatch):
+    cli_args = [
+        'ansible-galaxy',
+        'collection',
+        'install',
+        'namespace.collection:1.0.0',
+        '-s',
+        'https://galaxy.ansible.com'
+    ]
+    if global_ignore_certs:
+        cli_args.append('--ignore-certs')
+
+    galaxy_cli = GalaxyCLI(args=cli_args)
+    mock_execute_install = MagicMock()
+    monkeypatch.setattr(galaxy_cli, '_execute_install_collection', mock_execute_install)
+    galaxy_cli.run()
+
+    assert len(galaxy_cli.api_servers) == 1
+    assert galaxy_cli.api_servers[0].validate_certs is not global_ignore_certs
+
+
+@pytest.mark.parametrize('global_ignore_certs', [True, False])
+def test_validate_certs_with_server_config(global_ignore_certs, server_config, monkeypatch):
     get_plugin_options = MagicMock(side_effect=server_config)
     monkeypatch.setattr(C.config, 'get_plugin_options', get_plugin_options)
 
@@ -287,6 +329,45 @@ def test_build_existing_output_with_force(collection_input):
 
     # Verify the file was replaced with an actual tar file
     assert tarfile.is_tarfile(existing_output)
+
+
+def test_build_with_existing_files_and_manifest(collection_input):
+    input_dir, output_dir = collection_input
+
+    with open(os.path.join(input_dir, 'MANIFEST.json'), "wb") as fd:
+        fd.write(b'{"collection_info": {"version": "6.6.6"}, "version": 1}')
+
+    with open(os.path.join(input_dir, 'FILES.json'), "wb") as fd:
+        fd.write(b'{"files": [], "format": 1}')
+
+    with open(os.path.join(input_dir, "plugins", "MANIFEST.json"), "wb") as fd:
+        fd.write(b"test data that should be in build")
+
+    collection.build_collection(to_text(input_dir, errors='surrogate_or_strict'), to_text(output_dir, errors='surrogate_or_strict'), False)
+
+    output_artifact = os.path.join(output_dir, 'ansible_namespace-collection-0.1.0.tar.gz')
+    assert tarfile.is_tarfile(output_artifact)
+
+    with tarfile.open(output_artifact, mode='r') as actual:
+        members = actual.getmembers()
+
+        manifest_file = next(m for m in members if m.path == "MANIFEST.json")
+        manifest_file_obj = actual.extractfile(manifest_file.name)
+        manifest_file_text = manifest_file_obj.read()
+        manifest_file_obj.close()
+        assert manifest_file_text != b'{"collection_info": {"version": "6.6.6"}, "version": 1}'
+
+        json_file = next(m for m in members if m.path == "MANIFEST.json")
+        json_file_obj = actual.extractfile(json_file.name)
+        json_file_text = json_file_obj.read()
+        json_file_obj.close()
+        assert json_file_text != b'{"files": [], "format": 1}'
+
+        sub_manifest_file = next(m for m in members if m.path == "plugins/MANIFEST.json")
+        sub_manifest_file_obj = actual.extractfile(sub_manifest_file.name)
+        sub_manifest_file_text = sub_manifest_file_obj.read()
+        sub_manifest_file_obj.close()
+        assert sub_manifest_file_text == b"test data that should be in build"
 
 
 @pytest.mark.parametrize('galaxy_yml_dir', [b'namespace: value: broken'], indirect=True)

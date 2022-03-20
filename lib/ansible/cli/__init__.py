@@ -52,6 +52,7 @@ from ansible.errors import AnsibleError, AnsibleOptionsError, AnsibleParserError
 from ansible.inventory.manager import InventoryManager
 from ansible.module_utils.six import string_types
 from ansible.module_utils._text import to_bytes, to_text
+from ansible.module_utils.common.file import is_executable
 from ansible.parsing.dataloader import DataLoader
 from ansible.parsing.vault import PromptVaultSecret, get_file_vault_secret
 from ansible.plugins.loader import add_all_plugin_dirs
@@ -502,7 +503,7 @@ class CLI(ABC):
         loader.set_vault_secrets(vault_secrets)
 
         # create the inventory, and filter it based on the subset specified (if any)
-        inventory = InventoryManager(loader=loader, sources=options['inventory'])
+        inventory = InventoryManager(loader=loader, sources=options['inventory'], cache=(not options.get('flush_cache')))
 
         # create the variable manager, which will be shared throughout
         # the code, ensuring a consistent view of global variables
@@ -540,7 +541,7 @@ class CLI(ABC):
         elif not os.path.exists(b_pwd_file):
             raise AnsibleError("The password file %s was not found" % pwd_file)
 
-        elif os.path.is_executable(b_pwd_file):
+        elif is_executable(b_pwd_file):
             display.vvvv(u'The password file %s is a script.' % to_text(pwd_file))
             cmd = [b_pwd_file]
 

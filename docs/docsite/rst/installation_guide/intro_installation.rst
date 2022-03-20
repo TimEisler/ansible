@@ -77,6 +77,8 @@ You can choose any of the following ways to install the Ansible community packag
 * Install the latest release with your OS package manager (for Red Hat Enterprise Linux (TM), CentOS, Fedora, Debian, or Ubuntu).
 * Install with ``pip`` (the Python package manager).
 
+.. _install_core:
+
 Installing `ansible-core`
 -------------------------
 
@@ -85,6 +87,7 @@ Ansible also distributes a minimalist object called ``ansible-core`` (or ``ansib
 You can choose any of the following ways to install ``ansible-core``:
 
 * Install ``ansible-core`` (version 2.11 and greater) or ``ansible-base`` (version 2.10) with ``pip``.
+* Install ``ansible-core`` (version 2.11 and greater) RPM package with ``dnf``.
 * Install ``ansible-core`` from source from the ansible/ansible GitHub repository to access the development (``devel``) version to develop or test the latest features.
 
 .. note::
@@ -241,10 +244,6 @@ On CentOS:
 
 RPMs for currently supported versions of RHEL and CentOS are also available from `EPEL <https://fedoraproject.org/wiki/EPEL>`_.
 
-.. note::
-
-	Since Ansible 2.10 for RHEL is not available at this time,  continue to use Ansible 2.9.
-
 Ansible can manage older operating systems that contain Python 2.6 or higher.
 
 .. _from_apt:
@@ -264,6 +263,15 @@ To configure the PPA on your machine and install Ansible run these commands:
     $ sudo apt install ansible
 
 .. note:: On older Ubuntu distributions, "software-properties-common" is called "python-software-properties". You may want to use ``apt-get`` instead of ``apt`` in older versions. Also, be aware that only newer distributions (in other words, 18.04, 18.10, and so on) have a ``-u`` or ``--update`` flag, so adjust your script accordingly.
+
+If you are reinstalling Ansible, you must first fully uninstall all Ansible packages.
+The following command uninstalls ``ansible-package`` and the other packages that were installed with Ansible:
+
+.. code-block:: bash
+
+    $ sudo apt autoremove ansible
+
+The ``sudo apt remove ansible`` command only removes ``ansible-package``.
 
 Installing Ansible on Debian
 ----------------------------
@@ -326,36 +334,62 @@ To install the newest version, you may need to unmask the Ansible package prior 
 
     $ echo 'app-admin/ansible' >> /etc/portage/package.accept_keywords
 
+
 Installing Ansible on FreeBSD
 -----------------------------
 
-Though Ansible works with both Python 2 and 3 versions, FreeBSD has different packages for each Python version.
-So to install you can use:
+You can install Ansible on FreeBSD either from a package or from a port. See the FreeBSD handbook `Chapter 4. Installing Applications: Packages and Ports <https://docs.freebsd.org/en/books/handbook/ports/>`_. A best practice is to use the packages on the fresh installation of the system and both update and upgrade from the ports later. It's not recommended to mix the installation from packages and ports, that is,  keep updating and upgrading from the ports. See the warning in the FreeBSD handbook `4.5. Using the Ports Collection <https://docs.freebsd.org/en/books/handbook/ports/#ports-using>`_.
+
+
+FreeBSD packages
+^^^^^^^^^^^^^^^^
+
+The installation from the packages is simpler, compared to the installation from the ports. See the details in the FreeBSD handbook `4.3. Finding Software <https://docs.freebsd.org/en/books/handbook/ports/#ports-finding-applications>`_ and `4.4. Using pkg for Binary Package Management <https://docs.freebsd.org/en/books/handbook/ports/#pkgng-intro>`_. Take a look at available packages, for example:
 
 .. code-block:: bash
 
-    $ sudo pkg install py27-ansible
+  shell> pkg search ansible
+  ansible-sshjail-1.1.0.35       Ansible connector for remote jails
+  py38-ansible-4.7.0             Radically simple IT automation
+  py38-ansible-base-2.10.15      Radically simple IT automation
+  py38-ansible-core-2.11.6       Radically simple IT automation
+  py38-ansible-iocage-g20200327,1 Ansible module for iocage
+  py38-ansible-kld-g20200803,1   Ansible module to load kernel modules or update /boot/loader.conf
+  py38-ansible-lint-5.3.2        Checks playbooks for sub-optimal practices and behaviour
+  py38-ansible-runner-2.0.2      Extensible embeddable ansible job runner
+  py38-ansible-sysrc-g20200803_1,1 Ansible module to set sysvars in rc.conf
+  py38-ansible2-2.9.27           Radically simple IT automation
 
-or:
-
-.. code-block:: bash
-
-    $ sudo pkg install py37-ansible
-
-
-You may also wish to install from ports, run:
-
-.. code-block:: bash
-
-    $ sudo make -C /usr/ports/sysutils/ansible install
-
-You can also choose a specific version, for example ``ansible25``.
-
-Older versions of FreeBSD worked with something like this (substitute for your choice of package manager):
+Pick the flavor of the package (only py38 is available in the example above) and install the package (as a root, of course).
 
 .. code-block:: bash
 
-    $ sudo pkg install ansible
+    shell> pkg install py38-ansible
+
+The dependencies will be installed automatically after you approve them. For example, the installation of py38-ansible depends on the packages listed below
+
+.. code-block:: bash
+
+    shell> pkg info -d  py38-ansible
+    py38-ansible-4.3.0:
+		py38-ansible-core-2.11.3
+                python38-3.8.12
+		py38-setuptools-57.0.0
+
+
+FreeBSD ports
+^^^^^^^^^^^^^
+The installation from the ports is more complex, compared to the installation from the packages, but flexible. See the details in the FreeBSD handbook `4.5. Using the Ports Collection <https://docs.freebsd.org/en/books/handbook/ports/#ports-using>`_. To install Ansible from a port change the directory and install the port (as a root, of course)
+
+.. code-block:: bash
+
+  shell> cd /usr/ports/sysutils/ansible
+  shell> make install clean
+
+.. note::
+
+  If you want to learn more about flavors see Porter's Handbook `Chapter 7. Flavors <https://docs.freebsd.org/en/books/porters-handbook/flavors/>`_.
+
 
 .. _on_macos:
 
@@ -364,20 +398,17 @@ Installing Ansible on macOS
 
 The preferred way to install Ansible on a Mac is with ``pip``.
 
-The instructions can be found in :ref:`from_pip`. If you are running macOS version 10.12 or older, then you should upgrade to the latest ``pip`` to connect to the Python Package Index securely. It should be noted that pip must be run as a module on macOS, and the linked ``pip`` instructions will show you how to do that.
+The instructions can be found in :ref:`from_pip`.
+
+.. note::
+
+    macOS 12.3 removes the Python 2 installation. The official recommendation for installing Python on macOS for use by Ansible is to use the installer provided by `Python.org <https://www.python.org/downloads/macos/>`_.
+
+    Alternately, you can choose to manually execute ``/usr/bin/python3`` provided along with macOS, and follow the instructions to install the Xcode developer tools. This is not listed as the official recommendation due to the extra dependencies.
 
 .. note::
 
     If you have Ansible 2.9 or older installed or Ansible 3, see :ref:`pip_upgrade`.
-
-
-.. note::
-
-   macOS by default is configured for a small number of file handles, so if you want to use 15 or more forks you'll need to raise the ulimit with ``sudo launchctl limit maxfiles unlimited``. This command can also fix any "Too many open files" errors.
-
-If you are installing on macOS Mavericks (10.9), you may encounter some noise from your compiler. A workaround is to do the following::
-
-    $ CFLAGS=-Qunused-arguments CPPFLAGS=-Qunused-arguments pip install --user ansible
 
 
 .. _from_pkgutil:

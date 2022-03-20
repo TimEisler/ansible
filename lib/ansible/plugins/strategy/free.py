@@ -156,9 +156,9 @@ class StrategyModule(StrategyBase):
                             if same_tasks >= throttle:
                                 break
 
-                        # pop the task, mark the host blocked, and queue it
+                        # advance the host, mark the host blocked, and queue it
                         self._blocked_hosts[host_name] = True
-                        (state, task) = iterator.get_next_task_for_host(host)
+                        iterator.set_state_for_host(host.name, state)
 
                         try:
                             action = action_loader.get(task.action, class_only=True, collection_list=task.collections)
@@ -260,6 +260,9 @@ class StrategyModule(StrategyBase):
                     except AnsibleParserError:
                         raise
                     except AnsibleError as e:
+                        for r in included_file._results:
+                            r._result['failed'] = True
+
                         for host in included_file._hosts:
                             iterator.mark_host_failed(host)
                         display.warning(to_text(e))

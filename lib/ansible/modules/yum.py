@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # Copyright: (c) 2012, Red Hat, Inc
@@ -50,9 +49,9 @@ options:
     version_added: "2.0"
   list:
     description:
-      - "Package name to run the equivalent of yum list --show-duplicates <package> against. In addition to listing packages,
+      - "Package name to run the equivalent of yum list C(--show-duplicates <package>) against. In addition to listing packages,
         use can also list the following: C(installed), C(updates), C(available) and C(repos)."
-      - This parameter is mutually exclusive with C(name).
+      - This parameter is mutually exclusive with I(name).
     type: str
   state:
     description:
@@ -119,7 +118,13 @@ options:
     type: bool
     default: "yes"
     version_added: "2.1"
-
+  sslverify:
+    description:
+      - Disables SSL validation of the repository server for this transaction.
+      - This should be set to C(no) if one of the configured repositories is using an untrusted or self-signed certificate.
+    type: bool
+    default: "yes"
+    version_added: "2.13"
   update_only:
     description:
       - When using latest, only update installed packages. Do not install packages.
@@ -261,8 +266,8 @@ attributes:
     platform:
         platforms: rhel
 notes:
-  - When used with a `loop:` each package will be processed individually,
-    it is much more efficient to pass the list directly to the `name` option.
+  - When used with a C(loop:) each package will be processed individually,
+    it is much more efficient to pass the list directly to the I(name) option.
   - In versions prior to 1.9.2 this module installed and removed each package
     given to the yum module separately. This caused problems when packages
     specified by filename or url had to be installed or removed together. In
@@ -298,17 +303,17 @@ author:
 
 EXAMPLES = '''
 - name: Install the latest version of Apache
-  yum:
+  ansible.builtin.yum:
     name: httpd
     state: latest
 
 - name: Install Apache >= 2.4
-  yum:
+  ansible.builtin.yum:
     name: httpd>=2.4
     state: present
 
 - name: Install a list of packages (suitable replacement for 2.11 loop deprecation warning)
-  yum:
+  ansible.builtin.yum:
     name:
       - nginx
       - postgresql
@@ -316,7 +321,7 @@ EXAMPLES = '''
     state: present
 
 - name: Install a list of packages with a list variable
-  yum:
+  ansible.builtin.yum:
     name: "{{ packages }}"
   vars:
     packages:
@@ -324,69 +329,69 @@ EXAMPLES = '''
     - httpd-tools
 
 - name: Remove the Apache package
-  yum:
+  ansible.builtin.yum:
     name: httpd
     state: absent
 
 - name: Install the latest version of Apache from the testing repo
-  yum:
+  ansible.builtin.yum:
     name: httpd
     enablerepo: testing
     state: present
 
 - name: Install one specific version of Apache
-  yum:
+  ansible.builtin.yum:
     name: httpd-2.2.29-1.4.amzn1
     state: present
 
 - name: Upgrade all packages
-  yum:
+  ansible.builtin.yum:
     name: '*'
     state: latest
 
 - name: Upgrade all packages, excluding kernel & foo related packages
-  yum:
+  ansible.builtin.yum:
     name: '*'
     state: latest
     exclude: kernel*,foo*
 
 - name: Install the nginx rpm from a remote repo
-  yum:
+  ansible.builtin.yum:
     name: http://nginx.org/packages/centos/6/noarch/RPMS/nginx-release-centos-6-0.el6.ngx.noarch.rpm
     state: present
 
 - name: Install nginx rpm from a local file
-  yum:
+  ansible.builtin.yum:
     name: /usr/local/src/nginx-release-centos-6-0.el6.ngx.noarch.rpm
     state: present
 
 - name: Install the 'Development tools' package group
-  yum:
+  ansible.builtin.yum:
     name: "@Development tools"
     state: present
 
 - name: Install the 'Gnome desktop' environment group
-  yum:
+  ansible.builtin.yum:
     name: "@^gnome-desktop-environment"
     state: present
 
 - name: List ansible packages and register result to print with debug later
-  yum:
+  ansible.builtin.yum:
     list: ansible
   register: result
 
 - name: Install package with multiple repos enabled
-  yum:
+  ansible.builtin.yum:
     name: sos
     enablerepo: "epel,ol7_latest"
 
 - name: Install package with multiple repos disabled
-  yum:
+  ansible.builtin.yum:
     name: sos
     disablerepo: "epel,ol7_latest"
 
 - name: Download the nginx package but do not install it
-  yum:
+  ansible.builtin.yum:
     name:
       - nginx
     state: latest
@@ -550,6 +555,11 @@ class YumModule(YumDnf):
                     self._yum_base.conf.cache = 0
             if self.disable_excludes:
                 self._yum_base.conf.disable_excludes = self.disable_excludes
+
+            # setting conf.sslverify allows retrieving the repo's metadata
+            # without validating the certificate, but that does not allow
+            # package installation from a bad-ssl repo.
+            self._yum_base.conf.sslverify = self.sslverify
 
             # A sideeffect of accessing conf is that the configuration is
             # loaded and plugins are discovered
@@ -737,24 +747,24 @@ class YumModule(YumDnf):
                     # If a repo with `repo_gpgcheck=1` is added and the repo GPG
                     # key was never accepted, querying this repo will throw an
                     # error: 'repomd.xml signature could not be verified'. In that
-                    # situation we need to run `yum -y makecache` which will accept
+                    # situation we need to run `yum -y makecache fast` which will accept
                     # the key and try again.
                     if 'repomd.xml signature could not be verified' in to_native(e):
                         if self.releasever:
-                            self.module.run_command(self.yum_basecmd + ['makecache'] + ['--releasever=%s' % self.releasever])
+                            self.module.run_command(self.yum_basecmd + ['makecache', 'fast', '--releasever=%s' % self.releasever])
                         else:
-                            self.module.run_command(self.yum_basecmd + ['makecache'])
+                            self.module.run_command(self.yum_basecmd + ['makecache', 'fast'])
                         pkgs = self.yum_base.returnPackagesByDep(req_spec) + \
                             self.yum_base.returnInstalledPackagesByDep(req_spec)
                     else:
                         raise
                 if not pkgs:
-                    e, m, _ = self.yum_base.pkgSack.matchPackageNames([req_spec])
-                    pkgs.extend(e)
-                    pkgs.extend(m)
-                    e, m, _ = self.yum_base.rpmdb.matchPackageNames([req_spec])
-                    pkgs.extend(e)
-                    pkgs.extend(m)
+                    exact_matches, glob_matches = self.yum_base.pkgSack.matchPackageNames([req_spec])[0:2]
+                    pkgs.extend(exact_matches)
+                    pkgs.extend(glob_matches)
+                    exact_matches, glob_matches = self.yum_base.rpmdb.matchPackageNames([req_spec])[0:2]
+                    pkgs.extend(exact_matches)
+                    pkgs.extend(glob_matches)
             except Exception as e:
                 self.module.fail_json(msg="Failure talking to yum: %s" % to_native(e))
 
@@ -955,6 +965,11 @@ class YumModule(YumDnf):
         cmd = self.yum_basecmd + [action] + pkgs
         if self.releasever:
             cmd.extend(['--releasever=%s' % self.releasever])
+
+        # setting sslverify using --setopt is required as conf.sslverify only
+        # affects the metadata retrieval.
+        if not self.sslverify:
+            cmd.extend(['--setopt', 'sslverify=0'])
 
         if self.module.check_mode:
             self.module.exit_json(changed=True, results=res['results'], changes=dict(installed=pkgs))

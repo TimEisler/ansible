@@ -219,7 +219,9 @@ class Display(metaclass=Singleton):
             try:
                 cmd = subprocess.Popen([self.b_cowsay, "-l"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 (out, err) = cmd.communicate()
-                self.cows_available = {to_text(c) for c in out.split()}
+                if cmd.returncode:
+                    raise Exception
+                self.cows_available = {to_text(c) for c in out.split()}  # set comprehension
                 if C.ANSIBLE_COW_ACCEPTLIST and any(C.ANSIBLE_COW_ACCEPTLIST):
                     self.cows_available = set(C.ANSIBLE_COW_ACCEPTLIST).intersection(self.cows_available)
             except Exception:
@@ -262,11 +264,10 @@ class Display(metaclass=Singleton):
                 msg2 = msg2 + u'\n'
 
             msg2 = to_bytes(msg2, encoding=self._output_encoding(stderr=stderr))
-            if sys.version_info >= (3,):
-                # Convert back to text string on python3
-                # We first convert to a byte string so that we get rid of
-                # characters that are invalid in the user's locale
-                msg2 = to_text(msg2, self._output_encoding(stderr=stderr), errors='replace')
+            # Convert back to text string
+            # We first convert to a byte string so that we get rid of
+            # characters that are invalid in the user's locale
+            msg2 = to_text(msg2, self._output_encoding(stderr=stderr), errors='replace')
 
             # Note: After Display() class is refactored need to update the log capture
             # code in 'bin/ansible-connection' (and other relevant places).
@@ -290,9 +291,8 @@ class Display(metaclass=Singleton):
             # color and characters that are invalid in the user's locale
             msg2 = to_bytes(nocolor.lstrip(u'\n'))
 
-            if sys.version_info >= (3,):
-                # Convert back to text string on python3
-                msg2 = to_text(msg2, self._output_encoding(stderr=stderr))
+            # Convert back to text string
+            msg2 = to_text(msg2, self._output_encoding(stderr=stderr))
 
             lvl = logging.INFO
             if color:
@@ -461,10 +461,9 @@ class Display(metaclass=Singleton):
     @staticmethod
     def prompt(msg, private=False):
         prompt_string = to_bytes(msg, encoding=Display._output_encoding())
-        if sys.version_info >= (3,):
-            # Convert back into text on python3.  We do this double conversion
-            # to get rid of characters that are illegal in the user's locale
-            prompt_string = to_text(prompt_string)
+        # Convert back into text.  We do this double conversion
+        # to get rid of characters that are illegal in the user's locale
+        prompt_string = to_text(prompt_string)
 
         if private:
             return getpass.getpass(prompt_string)

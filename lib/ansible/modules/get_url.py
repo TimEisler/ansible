@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # Copyright: (c) 2012, Jan-Piet Mens <jpmens () gmail.com>
@@ -23,7 +22,7 @@ description:
      - HTTP redirects can redirect from HTTP to HTTPS so you should be sure that
        your proxy environment for both protocols is correct.
      - From Ansible 2.4 when run with C(--check), it will do a HEAD request to validate the URL but
-       will not download the entire file or verify it against hashes.
+       will not download the entire file or verify it against hashes and will report incorrect changed status.
      - For Windows targets, use the M(ansible.windows.win_get_url) module instead.
 version_added: '0.6'
 options:
@@ -180,7 +179,7 @@ options:
       - Requires the Python library L(gssapi,https://github.com/pythongssapi/python-gssapi) to be installed.
       - Credentials for GSSAPI can be specified with I(url_username)/I(url_password) or with the GSSAPI env var
         C(KRB5CCNAME) that specified a custom Kerberos credential cache.
-      - NTLM authentication is C(not) supported even if the GSSAPI mech for NTLM has been installed.
+      - NTLM authentication is I(not) supported even if the GSSAPI mech for NTLM has been installed.
     type: bool
     default: no
     version_added: '2.11'
@@ -190,7 +189,8 @@ extends_documentation_fragment:
     - action_common_attributes
 attributes:
     check_mode:
-        support: full
+        details: the changed status will reflect comparison to an empty source file
+        support: partial
     diff_mode:
         support: none
     platform:
@@ -206,19 +206,19 @@ author:
 
 EXAMPLES = r'''
 - name: Download foo.conf
-  get_url:
+  ansible.builtin.get_url:
     url: http://example.com/path/file.conf
     dest: /etc/foo.conf
     mode: '0440'
 
 - name: Download file and force basic auth
-  get_url:
+  ansible.builtin.get_url:
     url: http://example.com/path/file.conf
     dest: /etc/foo.conf
     force_basic_auth: yes
 
 - name: Download file with custom HTTP headers
-  get_url:
+  ansible.builtin.get_url:
     url: http://example.com/path/file.conf
     dest: /etc/foo.conf
     headers:
@@ -226,31 +226,31 @@ EXAMPLES = r'''
       key2: two
 
 - name: Download file with check (sha256)
-  get_url:
+  ansible.builtin.get_url:
     url: http://example.com/path/file.conf
     dest: /etc/foo.conf
     checksum: sha256:b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c
 
 - name: Download file with check (md5)
-  get_url:
+  ansible.builtin.get_url:
     url: http://example.com/path/file.conf
     dest: /etc/foo.conf
     checksum: md5:66dffb5228a211e61d6d7ef4a86f5758
 
 - name: Download file with checksum url (sha256)
-  get_url:
+  ansible.builtin.get_url:
     url: http://example.com/path/file.conf
     dest: /etc/foo.conf
     checksum: sha256:http://example.com/path/sha256sum.txt
 
 - name: Download file from a file path
-  get_url:
+  ansible.builtin.get_url:
     url: file:///tmp/afile.txt
     dest: /tmp/afilecopy.txt
 
 - name: < Fetch file that requires authentication.
         username/password only available since 2.8, in older versions you need to use url_username/url_password
-  get_url:
+  ansible.builtin.get_url:
     url: http://example.com/path/file.conf
     dest: /etc/foo.conf
     username: bar

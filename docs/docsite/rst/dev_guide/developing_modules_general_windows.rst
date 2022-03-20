@@ -84,13 +84,11 @@ created Windows VM:
 The OS that is created is based on the image set. The following
 images can be used:
 
-- `jborean93/WindowsServer2008-x86 <https://app.vagrantup.com/jborean93/boxes/WindowsServer2008-x86>`_
-- `jborean93/WindowsServer2008-x64 <https://app.vagrantup.com/jborean93/boxes/WindowsServer2008-x64>`_
-- `jborean93/WindowsServer2008R2 <https://app.vagrantup.com/jborean93/boxes/WindowsServer2008R2>`_
 - `jborean93/WindowsServer2012 <https://app.vagrantup.com/jborean93/boxes/WindowsServer2012>`_
 - `jborean93/WindowsServer2012R2 <https://app.vagrantup.com/jborean93/boxes/WindowsServer2012R2>`_
 - `jborean93/WindowsServer2016 <https://app.vagrantup.com/jborean93/boxes/WindowsServer2016>`_
 - `jborean93/WindowsServer2019 <https://app.vagrantup.com/jborean93/boxes/WindowsServer2019>`_
+- `jborean93/WindowsServer2022 <https://app.vagrantup.com/jborean93/boxes/WindowsServer2022>`_
 
 When the host is online, it can accessible by RDP on ``127.0.0.1:3389`` but the
 port may differ depending if there was a conflict. To get rid of the host, run
@@ -157,10 +155,6 @@ controller started with ``00`` and is incremented from there. For example, in
 the default ``inventory.yml`` file, WinRM over HTTPS for ``SERVER2012R2`` is
 forwarded over port ``29804`` as it's the fourth entry in ``domain_children``.
 
-.. note:: While an SSH server is available on all Windows hosts but Server
-    2008 (non R2), it is not a support connection for Ansible managing Windows
-    hosts and should not be used with Ansible.
-
 Windows new module development
 ==============================
 
@@ -177,7 +171,7 @@ When creating a new module there are a few things to keep in mind:
 - Look for common functions in ``./lib/ansible/module_utils/powershell/`` and use the code there instead of duplicating work. These can be imported by adding the line ``#Requires -Module *`` where * is the filename to import, and will be automatically included with the module code sent to the Windows target when run via Ansible
 - As well as PowerShell module utils, C# module utils are stored in ``./lib/ansible/module_utils/csharp/`` and are automatically imported in a module execution if the line ``#AnsibleRequires -CSharpUtil *`` is present
 - C# and PowerShell module utils achieve the same goal but C# allows a developer to implement low level tasks, such as calling the Win32 API, and can be faster in some cases
-- Ensure the code runs under Powershell v3 and higher on Windows Server 2008 and higher; if higher minimum Powershell or OS versions are required, ensure the documentation reflects this clearly
+- Ensure the code runs under Powershell v3 and higher on Windows Server 2012 and higher; if higher minimum Powershell or OS versions are required, ensure the documentation reflects this clearly
 - Ansible runs modules under strictmode version 2.0. Be sure to test with that enabled by putting ``Set-StrictMode -Version 2.0`` at the top of your dev script
 - Favor native Powershell cmdlets over executable calls if possible
 - Use the full cmdlet name instead of aliases, for example ``Remove-Item`` over ``rm``
@@ -273,9 +267,57 @@ These are the checks that can be used within Ansible modules:
 
 - ``#Requires -Module Ansible.ModuleUtils.<module_util>``: Added in Ansible 2.4, specifies a module_util to load in for the module execution.
 - ``#Requires -Version x.y``: Added in Ansible 2.5, specifies the version of PowerShell that is required by the module. The module will fail if this requirement is not met.
+- ``#AnsibleRequires -PowerShell <module_util>``: Added in Ansible 2.8, like ``#Requires -Module``, this specifies a module_util to load in for module execution.
+- ``#AnsibleRequires -CSharpUtil <module_util>``: Added in Ansible 2.8, specifies a C# module_util to load in for the module execution.
 - ``#AnsibleRequires -OSVersion x.y``: Added in Ansible 2.5, specifies the OS build version that is required by the module and will fail if this requirement is not met. The actual OS version is derived from ``[Environment]::OSVersion.Version``.
 - ``#AnsibleRequires -Become``: Added in Ansible 2.5, forces the exec runner to run the module with ``become``, which is primarily used to bypass WinRM restrictions. If ``ansible_become_user`` is not specified then the ``SYSTEM`` account is used instead.
-- ``#AnsibleRequires -CSharpUtil Ansible.<module_util>``: Added in Ansible 2.8, specifies a C# module_util to load in for the module execution.
+
+The ``#AnsibleRequires -PowerShell`` and ``#AnsibleRequires -CSharpUtil``
+support further features such as:
+
+- Importing a util contained in a collection (added in Ansible 2.9)
+- Importing a util by relative names (added in Ansible 2.10)
+- Specifying the util is optional by adding `-Optional` to the import
+  declaration (added in Ansible 2.12).
+
+See the below examples for more details:
+
+.. code-block:: powershell
+
+    # Imports the PowerShell Ansible.ModuleUtils.Legacy provided by Ansible itself
+    #AnsibleRequires -PowerShell Ansible.ModuleUtils.Legacy
+
+    # Imports the PowerShell my_util in the my_namesapce.my_name collection
+    #AnsibleRequires -PowerShell ansible_collections.my_namespace.my_name.plugins.module_utils.my_util
+
+    # Imports the PowerShell my_util that exists in the same collection as the current module
+    #AnsibleRequires -PowerShell ..module_utils.my_util
+
+    # Imports the PowerShell Ansible.ModuleUtils.Optional provided by Ansible if it exists.
+    # If it does not exist then it will do nothing.
+    #AnsibleRequires -PowerShell Ansible.ModuleUtils.Optional -Optional
+
+    # Imports the C# Ansible.Process provided by Ansible itself
+    #AnsibleRequires -CSharpUtil Ansible.Process
+
+    # Imports the C# my_util in the my_namespace.my_name collection
+    #AnsibleRequires -CSharpUtil ansible_collections.my_namespace.my_name.plugins.module_utils.my_util
+
+    # Imports the C# my_util that exists in the same collection as the current module
+    #AnsibleRequires -CSharpUtil ..module_utils.my_util
+
+    # Imports the C# Ansible.Optional provided by Ansible if it exists.
+    # If it does not exist then it will do nothing.
+    #AnsibleRequires -CSharpUtil Ansible.Optional -Optional
+
+For optional require statements, it is up to the module code to then verify
+whether the util has been imported before trying to use it. This can be done by
+checking if a function or type provided by the util exists or not.
+
+While both ``#Requires -Module`` and ``#AnsibleRequires -PowerShell`` can be
+used to load a PowerShell module it is recommended to use ``#AnsibleRequires``.
+This is because ``#AnsibleRequires`` supports collection module utils, imports
+by relative util names, and optional util imports.
 
 C# module utils can reference other C# utils by adding the line
 ``using Ansible.<module_util>;`` to the top of the script with all the other
@@ -432,7 +474,7 @@ modules to authentication with a service.
 
             [Parameter(Mandatory=$true)]
             [String]
-            $ResourceId
+            $ResourceId,
 
             [String]
             $State = 'present'

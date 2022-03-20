@@ -12,6 +12,7 @@ from .io import (
 )
 
 from .config import (
+    CommonConfig,
     EnvironmentConfig,
     IntegrationConfig,
     SanityConfig,
@@ -36,6 +37,7 @@ from .util_common import (
 
 from .containers import (
     support_container_context,
+    ContainerDatabase,
 )
 
 from .data import (
@@ -53,7 +55,6 @@ from .ci import (
 from .host_configs import (
     OriginConfig,
     PythonConfig,
-    VirtualPythonConfig,
 )
 
 from .connections import (
@@ -69,7 +70,7 @@ from .provisioning import (
 
 
 @contextlib.contextmanager
-def delegation_context(args, host_state):  # type: (EnvironmentConfig, HostState) -> None
+def delegation_context(args, host_state):  # type: (EnvironmentConfig, HostState) -> t.Iterator[None]
     """Context manager for serialized host state during delegation."""
     make_dirs(ResultType.TMP.path)
 
@@ -89,8 +90,10 @@ def delegation_context(args, host_state):  # type: (EnvironmentConfig, HostState
             args.host_path = None
 
 
-def delegate(args, host_state, exclude, require):  # type: (EnvironmentConfig, HostState, t.List[str], t.List[str]) -> None
+def delegate(args, host_state, exclude, require):  # type: (CommonConfig, HostState, t.List[str], t.List[str]) -> None
     """Delegate execution of ansible-test to another environment."""
+    assert isinstance(args, EnvironmentConfig)
+
     with delegation_context(args, host_state):
         if isinstance(args, TestConfig):
             args.metadata.ci_provider = get_ci_provider().code
@@ -143,7 +146,7 @@ def delegate_command(args, host_state, exclude, require):  # type: (EnvironmentC
         if not args.allow_destructive:
             options.append('--allow-destructive')
 
-    with support_container_context(args, ssh) as containers:
+    with support_container_context(args, ssh) as containers:  # type: t.Optional[ContainerDatabase]
         if containers:
             options.extend(['--containers', json.dumps(containers.to_dict())])
 
@@ -254,9 +257,9 @@ def generate_command(
         ANSIBLE_TEST_CONTENT_ROOT=content_root,
     )
 
-    if isinstance(args.controller.python, VirtualPythonConfig):
-        # Expose the ansible and ansible_test library directories to the virtual environment.
-        # This is only required when running from an install.
+    if isinstance(args.controller, OriginConfig):
+        # Expose the ansible and ansible_test library directories to the Python environment.
+        # This is only required when delegation is used on the origin host.
         library_path = process_scoped_temporary_directory(args)
 
         os.symlink(ANSIBLE_LIB_ROOT, os.path.join(library_path, 'ansible'))

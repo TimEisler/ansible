@@ -104,9 +104,8 @@ class AwsCloudEnvironment(CloudEnvironment):
         ansible_vars = dict(
             resource_prefix=self.resource_prefix,
             tiny_prefix=uuid.uuid4().hex[0:12]
-        )
+        )  # type: t.Dict[str, t.Any]
 
-        # noinspection PyTypeChecker
         ansible_vars.update(dict(parser.items('default')))
 
         display.sensitive.add(ansible_vars.get('aws_secret_key'))
@@ -127,5 +126,5 @@ class AwsCloudEnvironment(CloudEnvironment):
         """Callback to run when an integration target fails."""
         if not tries and self.managed:
             display.notice('If %s failed due to permissions, the IAM test policy may need to be updated. '
-                           'https://docs.ansible.com/ansible/devel/dev_guide/platforms/aws_guidelines.html#aws-permissions-for-integration-tests.'
+                           'https://docs.ansible.com/ansible-core/devel/dev_guide/platforms/aws_guidelines.html#aws-permissions-for-integration-tests.'
                            % target.name)

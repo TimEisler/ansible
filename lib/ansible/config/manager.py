@@ -12,12 +12,14 @@ import sys
 import stat
 import tempfile
 import traceback
+
+from collections.abc import Mapping, Sequence
+
 from collections import namedtuple
 
 from ansible.config.data import ConfigData
 from ansible.errors import AnsibleOptionsError, AnsibleError
 from ansible.module_utils._text import to_text, to_bytes, to_native
-from ansible.module_utils.common._collections_compat import Mapping, Sequence
 from ansible.module_utils.common.yaml import yaml_load
 from ansible.module_utils.six import string_types
 from ansible.module_utils.parsing.convert_bool import boolean
@@ -275,8 +277,8 @@ def _add_base_defs_deprecations(base_defs):
 
 class ConfigManager(object):
 
-    DEPRECATED = []
-    WARNINGS = set()
+    DEPRECATED = []  # type: list[tuple[str, dict[str, str]]]
+    WARNINGS = set()  # type: set[str]
 
     def __init__(self, conf_file=None, defs_file=None):
 
@@ -360,6 +362,16 @@ class ConfigManager(object):
                 for var_entry in pdef['vars']:
                     pvars.append(var_entry['name'])
         return pvars
+
+    def get_plugin_options_from_var(self, plugin_type, name, variable):
+
+        options = []
+        for option_name, pdef in self.get_configuration_definitions(plugin_type, name).items():
+            if 'vars' in pdef and pdef['vars']:
+                for var_entry in pdef['vars']:
+                    if variable == var_entry['name']:
+                        options.append(option_name)
+        return options
 
     def get_configuration_definition(self, name, plugin_type=None, plugin_name=None):
 
@@ -462,6 +474,12 @@ class ConfigManager(object):
                     origin = 'var: %s' % origin
 
                 # use playbook keywords if you have em
+                if value is None and defs[config].get('keyword') and keys:
+                    value, origin = self._loop_entries(keys, defs[config]['keyword'])
+                    origin = 'keyword: %s' % origin
+
+                # automap to keywords
+                # TODO: deprecate these in favor of explicit keyword above
                 if value is None and keys:
                     if config in keys:
                         value = keys[config]
@@ -547,8 +565,18 @@ class ConfigManager(object):
                     invalid_choices = value not in defs[config]['choices']
 
                 if invalid_choices:
+
+                    if isinstance(defs[config]['choices'], Mapping):
+                        valid = ', '.join([to_text(k) for k in defs[config]['choices'].keys()])
+                    elif isinstance(defs[config]['choices'], string_types):
+                        valid = defs[config]['choices']
+                    elif isinstance(defs[config]['choices'], Sequence):
+                        valid = ', '.join([to_text(c) for c in defs[config]['choices']])
+                    else:
+                        valid = defs[config]['choices']
+
                     raise AnsibleOptionsError('Invalid value "%s" for configuration option "%s", valid values are: %s' %
-                                              (value, to_native(_get_entry(plugin_type, plugin_name, config)), defs[config]['choices']))
+                                              (value, to_native(_get_entry(plugin_type, plugin_name, config)), valid))
 
             # deal with deprecation of the setting
             if 'deprecated' in defs[config] and origin != 'default':

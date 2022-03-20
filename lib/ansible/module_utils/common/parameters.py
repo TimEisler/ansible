@@ -360,7 +360,7 @@ def _return_datastructure_name(obj):
         for element in obj:
             for subelement in _return_datastructure_name(element):
                 yield subelement
-    elif isinstance(obj, (bool, NoneType)):
+    elif obj is None or isinstance(obj, bool):
         # This must come before int because bools are also ints
         return
     elif isinstance(obj, tuple(list(integer_types) + [float])):
@@ -651,27 +651,24 @@ def _validate_argument_values(argument_spec, parameters, options_context=None, e
             if param in parameters:
                 # Allow one or more when type='list' param with choices
                 if isinstance(parameters[param], list):
-                    diff_list = ", ".join([item for item in parameters[param] if item not in choices])
+                    diff_list = [item for item in parameters[param] if item not in choices]
                     if diff_list:
                         choices_str = ", ".join([to_native(c) for c in choices])
-                        msg = "value of %s must be one or more of: %s. Got no match for: %s" % (param, choices_str, diff_list)
+                        diff_str = ", ".join(diff_list)
+                        msg = "value of %s must be one or more of: %s. Got no match for: %s" % (param, choices_str, diff_str)
                         if options_context:
                             msg = "{0} found in {1}".format(msg, " -> ".join(options_context))
                         errors.append(ArgumentValueError(msg))
                 elif parameters[param] not in choices:
                     # PyYaml converts certain strings to bools. If we can unambiguously convert back, do so before checking
                     # the value. If we can't figure this out, module author is responsible.
-                    lowered_choices = None
                     if parameters[param] == 'False':
-                        lowered_choices = lenient_lowercase(choices)
                         overlap = BOOLEANS_FALSE.intersection(choices)
                         if len(overlap) == 1:
                             # Extract from a set
                             (parameters[param],) = overlap
 
                     if parameters[param] == 'True':
-                        if lowered_choices is None:
-                            lowered_choices = lenient_lowercase(choices)
                         overlap = BOOLEANS_TRUE.intersection(choices)
                         if len(overlap) == 1:
                             (parameters[param],) = overlap

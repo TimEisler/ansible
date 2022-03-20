@@ -15,8 +15,8 @@ DOCUMENTATION = """
       - 'Arguments can be specified as key=value pair strings or as a shortcut form of the arguments string is also accepted: [start-]end[/stride][:format].'
       - 'Numerical values can be specified in decimal, hexadecimal (0x3f8) or octal (0600).'
       - Starting at version 1.9.2, negative strides are allowed.
-      - Generated items are strings. Use Jinja2 filters to convert items to preferred type, e.g. ``{{ 1 + item|int }}``.
-      - See also Jinja2 ``range`` filter as an alternative.
+      - Generated items are strings. Use Jinja2 filters to convert items to preferred type, e.g. C({{ 1 + item|int }}).
+      - See also Jinja2 C(range) filter as an alternative.
     options:
       start:
         description: number at which to start the sequence
@@ -39,31 +39,31 @@ DOCUMENTATION = """
 
 EXAMPLES = """
 - name: create some test users
-  user:
+  ansible.builtin.user:
     name: "{{ item }}"
     state: present
     groups: "evens"
   with_sequence: start=0 end=32 format=testuser%02x
 
 - name: create a series of directories with even numbers for some reason
-  file:
+  ansible.builtin.file:
     dest: "/var/stuff/{{ item }}"
     state: directory
   with_sequence: start=4 end=16 stride=2
 
 - name: a simpler way to use the sequence plugin create 4 groups
-  group:
+  ansible.builtin.group:
     name: "group{{ item }}"
     state: present
   with_sequence: count=4
 
 - name: the final countdown
-  debug:
+  ansible.builtin.debug:
     msg: "{{item}} seconds to detonation"
   with_sequence: start=10 end=0 stride=-1
 
 - name: Use of variable
-  debug:
+  ansible.builtin.debug:
     msg: "{{ item }}"
   with_sequence: start=1 end="{{ end_at }}"
   vars:

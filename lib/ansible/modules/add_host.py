@@ -28,6 +28,7 @@ options:
     description:
     - The groups to add the hostname to.
     type: list
+    elements: str
     aliases: [ group, groupname ]
 extends_documentation_fragment:
   - action_common_attributes
@@ -62,7 +63,7 @@ notes:
 - Since Ansible 2.4, the C(inventory_dir) variable is now set to C(None) instead of the 'global inventory source',
   because you can now have multiple sources.  An example was added that shows how to partially restore the previous behaviour.
 - Though this module does not change the remote host, we do provide 'changed' status as it can be useful for those trying to track inventory changes.
-- The hosts added will not bypass the ``--limit`` from the command line, so both of those need to be in agreement to make them available as play targets.
+- The hosts added will not bypass the C(--limit) from the command line, so both of those need to be in agreement to make them available as play targets.
   They are still available from hostvars and for delegation as a normal part of the inventory.
 seealso:
 - module: ansible.builtin.group_by
@@ -73,41 +74,41 @@ author:
 
 EXAMPLES = r'''
 - name: Add host to group 'just_created' with variable foo=42
-  add_host:
+  ansible.builtin.add_host:
     name: '{{ ip_from_ec2 }}'
     groups: just_created
     foo: 42
 
 - name: Add host to multiple groups
-  add_host:
+  ansible.builtin.add_host:
     hostname: '{{ new_ip }}'
     groups:
     - group1
     - group2
 
 - name: Add a host with a non-standard port local to your machines
-  add_host:
+  ansible.builtin.add_host:
     name: '{{ new_ip }}:{{ new_port }}'
 
 - name: Add a host alias that we reach through a tunnel (Ansible 1.9 and older)
-  add_host:
+  ansible.builtin.add_host:
     hostname: '{{ new_ip }}'
     ansible_ssh_host: '{{ inventory_hostname }}'
     ansible_ssh_port: '{{ new_port }}'
 
 - name: Add a host alias that we reach through a tunnel (Ansible 2.0 and newer)
-  add_host:
+  ansible.builtin.add_host:
     hostname: '{{ new_ip }}'
     ansible_host: '{{ inventory_hostname }}'
     ansible_port: '{{ new_port }}'
 
 - name: Ensure inventory vars are set to the same value as the inventory_hostname has (close to pre Ansible 2.4 behaviour)
-  add_host:
+  ansible.builtin.add_host:
     hostname: charlie
     inventory_dir: '{{ inventory_dir }}'
 
 - name: Add all hosts running this playbook to the done group
-  add_host:
+  ansible.builtin.add_host:
     name: '{{ item }}'
     groups: done
   loop: "{{ ansible_play_hosts }}"

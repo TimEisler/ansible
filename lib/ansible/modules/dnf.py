@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # Copyright 2015 Cristian van Ee <cristian at cvee.org>
@@ -132,14 +131,14 @@ options:
   security:
     description:
       - If set to C(yes), and C(state=latest) then only installs updates that have been marked security related.
-      - Note that, similar to ``dnf upgrade-minimal``, this filter applies to dependencies as well.
+      - Note that, similar to C(dnf upgrade-minimal), this filter applies to dependencies as well.
     type: bool
     default: "no"
     version_added: "2.7"
   bugfix:
     description:
       - If set to C(yes), and C(state=latest) then only installs updates that have been marked bugfix related.
-      - Note that, similar to ``dnf upgrade-minimal``, this filter applies to dependencies as well.
+      - Note that, similar to C(dnf upgrade-minimal), this filter applies to dependencies as well.
     default: "no"
     type: bool
     version_added: "2.7"
@@ -172,6 +171,13 @@ options:
     type: bool
     default: "yes"
     version_added: "2.7"
+  sslverify:
+    description:
+      - Disables SSL validation of the repository server for this transaction.
+      - This should be set to C(no) if one of the configured repositories is using an untrusted or self-signed certificate.
+    type: bool
+    default: "yes"
+    version_added: "2.13"
   allow_downgrade:
     description:
       - Specify if the named package and version is allowed to downgrade
@@ -255,7 +261,7 @@ attributes:
     platform:
         platforms: rhel
 notes:
-  - When used with a `loop:` each package will be processed individually, it is much more efficient to pass the list directly to the `name` option.
+  - When used with a C(loop:) each package will be processed individually, it is much more efficient to pass the list directly to the I(name) option.
   - Group removal doesn't work if the group was installed with Ansible because
     upstream dnf's API doesn't properly mark groups as installed, therefore upon
     removal the module is unable to detect that the group is installed
@@ -273,80 +279,80 @@ author:
 
 EXAMPLES = '''
 - name: Install the latest version of Apache
-  dnf:
+  ansible.builtin.dnf:
     name: httpd
     state: latest
 
 - name: Install Apache >= 2.4
-  dnf:
+  ansible.builtin.dnf:
     name: httpd>=2.4
     state: present
 
 - name: Install the latest version of Apache and MariaDB
-  dnf:
+  ansible.builtin.dnf:
     name:
       - httpd
       - mariadb-server
     state: latest
 
 - name: Remove the Apache package
-  dnf:
+  ansible.builtin.dnf:
     name: httpd
     state: absent
 
 - name: Install the latest version of Apache from the testing repo
-  dnf:
+  ansible.builtin.dnf:
     name: httpd
     enablerepo: testing
     state: present
 
 - name: Upgrade all packages
-  dnf:
+  ansible.builtin.dnf:
     name: "*"
     state: latest
 
 - name: Install the nginx rpm from a remote repo
-  dnf:
+  ansible.builtin.dnf:
     name: 'http://nginx.org/packages/centos/6/noarch/RPMS/nginx-release-centos-6-0.el6.ngx.noarch.rpm'
     state: present
 
 - name: Install nginx rpm from a local file
-  dnf:
+  ansible.builtin.dnf:
     name: /usr/local/src/nginx-release-centos-6-0.el6.ngx.noarch.rpm
     state: present
 
 - name: Install Package based upon the file it provides
-  dnf:
+  ansible.builtin.dnf:
     name: /usr/bin/cowsay
     state: present
 
 - name: Install the 'Development tools' package group
-  dnf:
+  ansible.builtin.dnf:
     name: '@Development tools'
     state: present
 
 - name: Autoremove unneeded packages installed as dependencies
-  dnf:
+  ansible.builtin.dnf:
     autoremove: yes
 
 - name: Uninstall httpd but keep its dependencies
-  dnf:
+  ansible.builtin.dnf:
     name: httpd
     state: absent
     autoremove: no
 
 - name: Install a modularity appstream with defined stream and profile
-  dnf:
+  ansible.builtin.dnf:
     name: '@postgresql:9.6/client'
     state: present
 
 - name: Install a modularity appstream with defined stream
-  dnf:
+  ansible.builtin.dnf:
     name: '@postgresql:9.6'
     state: present
 
 - name: Install a modularity appstream with defined profile
-  dnf:
+  ansible.builtin.dnf:
     name: '@postgresql/client'
     state: present
 '''
@@ -587,7 +593,7 @@ class DnfModule(YumDnf):
             results=[]
         )
 
-    def _configure_base(self, base, conf_file, disable_gpg_check, installroot='/'):
+    def _configure_base(self, base, conf_file, disable_gpg_check, installroot='/', sslverify=True):
         """Configure the dnf Base object."""
 
         conf = base.conf
@@ -615,6 +621,9 @@ class DnfModule(YumDnf):
 
         # Don't prompt for user confirmations
         conf.assumeyes = True
+
+        # Set certificate validation
+        conf.sslverify = sslverify
 
         # Set installroot
         conf.installroot = installroot
@@ -646,6 +655,14 @@ class DnfModule(YumDnf):
         # Set releasever
         if self.releasever is not None:
             conf.substitutions['releasever'] = self.releasever
+
+        if conf.substitutions.get('releasever') is None:
+            self.module.warn(
+                'Unable to detect release version (use "releasever" option to specify release version)'
+            )
+            # values of conf.substitutions are expected to be strings
+            # setting this to an empty string instead of None appears to mimic the DNF CLI behavior
+            conf.substitutions['releasever'] = ''
 
         # Set skip_broken (in dnf this is strict=0)
         if self.skip_broken:
@@ -686,10 +703,10 @@ class DnfModule(YumDnf):
                 for repo in repos.get_matching(repo_pattern):
                     repo.enable()
 
-    def _base(self, conf_file, disable_gpg_check, disablerepo, enablerepo, installroot):
+    def _base(self, conf_file, disable_gpg_check, disablerepo, enablerepo, installroot, sslverify):
         """Return a fully configured dnf Base object."""
         base = dnf.Base()
-        self._configure_base(base, conf_file, disable_gpg_check, installroot)
+        self._configure_base(base, conf_file, disable_gpg_check, installroot, sslverify)
         try:
             # this method has been supported in dnf-4.2.17-6 or later
             # https://bugzilla.redhat.com/show_bug.cgi?id=1788212
@@ -1350,7 +1367,7 @@ class DnfModule(YumDnf):
         if self.update_cache and not self.names and not self.list:
             self.base = self._base(
                 self.conf_file, self.disable_gpg_check, self.disablerepo,
-                self.enablerepo, self.installroot
+                self.enablerepo, self.installroot, self.sslverify
             )
             self.module.exit_json(
                 msg="Cache updated",
@@ -1368,7 +1385,7 @@ class DnfModule(YumDnf):
         if self.list:
             self.base = self._base(
                 self.conf_file, self.disable_gpg_check, self.disablerepo,
-                self.enablerepo, self.installroot
+                self.enablerepo, self.installroot, self.sslverify
             )
             self.list_items(self.list)
         else:
@@ -1381,7 +1398,7 @@ class DnfModule(YumDnf):
                 )
             self.base = self._base(
                 self.conf_file, self.disable_gpg_check, self.disablerepo,
-                self.enablerepo, self.installroot
+                self.enablerepo, self.installroot, self.sslverify
             )
 
             if self.with_modules:

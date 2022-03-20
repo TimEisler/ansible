@@ -219,7 +219,7 @@ class TestFailure(TestResult):
             command,  # type: str
             test,  # type: str
             python_version=None,  # type: t.Optional[str]
-            messages=None,  # type: t.Optional[t.List[TestMessage]]
+            messages=None,  # type: t.Optional[t.Sequence[TestMessage]]
             summary=None,  # type: t.Optional[str]
     ):
         super().__init__(command, test, python_version)
@@ -347,7 +347,7 @@ class TestFailure(TestResult):
         if re.search(r'^[0-9.]+$', ansible_version):
             url_version = '.'.join(ansible_version.split('.')[:2])
 
-        testing_docs_url = 'https://docs.ansible.com/ansible/%s/dev_guide/testing' % url_version
+        testing_docs_url = 'https://docs.ansible.com/ansible-core/%s/dev_guide/testing' % url_version
 
         url = '%s/%s/' % (testing_docs_url, self.command)
 

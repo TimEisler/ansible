@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # Copyright: (c) 2012, Michael DeHaan <michael.dehaan@gmail.com>, and others
@@ -363,6 +362,8 @@ def main():
     if r['msg']:
         module.exit_json(**r)
 
+    r['changed'] = True
+
     # actually executes command (or not ...)
     if not module.check_mode:
         r['start'] = datetime.datetime.now()
@@ -373,9 +374,10 @@ def main():
         # this is partial check_mode support, since we end up skipping if we get here
         r['rc'] = 0
         r['msg'] = "Command would have run if not in check mode"
-        r['skipped'] = True
-
-    r['changed'] = True
+        if creates is None and removes is None:
+            r['skipped'] = True
+            # skipped=True and changed=True are mutually exclusive
+            r['changed'] = False
 
     # convert to text for jsonization and usability
     if r['start'] is not None and r['end'] is not None:

@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # Copyright: (c) 2012, Michael DeHaan <michael.dehaan@gmail.com>
@@ -23,7 +22,7 @@ description:
       (such as M(ansible.builtin.systemd) and M(ansible.builtin.sysvinit)).
       This allows management of a heterogeneous environment of machines without creating a specific task for
       each service manager. The module to be executed is determined by the I(use) option, which defaults to the
-      service manager discovered by M(ansible.builtin.setup).  If `setup` was not yet run, this module may run it.
+      service manager discovered by M(ansible.builtin.setup).  If C(setup) was not yet run, this module may run it.
     - For Windows targets, use the M(ansible.windows.win_service) module instead.
 options:
     name:
@@ -1592,9 +1591,11 @@ class AIX(Service):
             srccmd = self.refresh_cmd
         elif self.action == 'restart':
             self.execute_command("%s %s %s" % (self.stopsrc_cmd, srccmd_parameter, self.name))
+            if self.sleep:
+                time.sleep(self.sleep)
             srccmd = self.startsrc_cmd
 
-        if self.arguments and self.action == 'start':
+        if self.arguments and self.action in ('start', 'restart'):
             return self.execute_command("%s -a \"%s\" %s %s" % (srccmd, self.arguments, srccmd_parameter, self.name))
         else:
             return self.execute_command("%s %s %s" % (srccmd, srccmd_parameter, self.name))

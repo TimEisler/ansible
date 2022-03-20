@@ -132,6 +132,59 @@ Porting custom scripts
 
 No notable changes
 
+Porting Guide for v4.10.0
+=========================
+
+Major Changes
+-------------
+
+containers.podman
+~~~~~~~~~~~~~~~~~
+
+- Add podman_tag module
+- Add secrets driver and driver opts support
+
+Deprecated Features
+-------------------
+
+cisco.nxos
+~~~~~~~~~~
+
+- Deprecated nxos_snmp_community module.
+- Deprecated nxos_snmp_contact module.
+- Deprecated nxos_snmp_host module.
+- Deprecated nxos_snmp_location module.
+- Deprecated nxos_snmp_traps module.
+- Deprecated nxos_snmp_user module.
+
+junipernetworks.junos
+~~~~~~~~~~~~~~~~~~~~~
+
+- 'router_id' options is deprecated from junos_ospf_interfaces, junos_ospfv2 and junos_ospfv3 resuorce module.
+
+Porting Guide for v4.9.0
+========================
+
+Known Issues
+------------
+
+purestorage.flashblade
+~~~~~~~~~~~~~~~~~~~~~~
+
+- purefb_lag - The mac_address field in the response is not populated. This will be fixed in a future FlashBlade update.
+
+Major Changes
+-------------
+
+fortinet.fortios
+~~~~~~~~~~~~~~~~
+
+- Add real-world use cases in the example section for some configuration modules.
+- Collect the current configurations of the modules and convert them into playbooks.
+- Support FortiOS 7.0.1.
+- Support member operation (delete/add extra members) on an object that has a list of members in it.
+- Support selectors feature in ``fortios_monitor_fact`` and ``fortios_log_fact``.
+
 Porting Guide for v4.8.0
 ========================
 

@@ -17,8 +17,9 @@ import sys
 import time
 import uuid
 import yaml
-
 import datetime
+
+from collections.abc import Mapping
 from functools import partial
 from random import Random, SystemRandom, shuffle
 
@@ -28,7 +29,6 @@ from ansible.errors import AnsibleError, AnsibleFilterError, AnsibleFilterTypeEr
 from ansible.module_utils.six import string_types, integer_types, reraise, text_type
 from ansible.module_utils._text import to_bytes, to_native, to_text
 from ansible.module_utils.common.collections import is_sequence
-from ansible.module_utils.common._collections_compat import Mapping
 from ansible.module_utils.common.yaml import yaml_load, yaml_load_all
 from ansible.parsing.ajson import AnsibleJSONEncoder
 from ansible.parsing.yaml.dumper import AnsibleDumper
@@ -65,6 +65,13 @@ def to_nice_yaml(a, indent=4, *args, **kw):
 
 def to_json(a, *args, **kw):
     ''' Convert the value to JSON '''
+
+    # defaults for filters
+    if 'vault_to_text' not in kw:
+        kw['vault_to_text'] = True
+    if 'preprocess_unsafe' not in kw:
+        kw['preprocess_unsafe'] = False
+
     return json.dumps(a, cls=AnsibleJSONEncoder, *args, **kw)
 
 

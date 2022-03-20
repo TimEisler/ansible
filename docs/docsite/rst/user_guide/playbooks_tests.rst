@@ -22,7 +22,7 @@ Test syntax
 
 `Test syntax <https://jinja.palletsprojects.com/en/latest/templates/#tests>`_ varies from `filter syntax <https://jinja.palletsprojects.com/en/latest/templates/#filters>`_ (``variable | filter``). Historically Ansible has registered tests as both jinja tests and jinja filters, allowing for them to be referenced using filter syntax.
 
-As of Ansible 2.5, using a jinja test as a filter will generate a warning.
+As of Ansible 2.5, using a jinja test as a filter will generate a deprecation warning. As of Ansible 2.9+ using jinja test syntax is required.
 
 The syntax for using a jinja test is as follows
 
@@ -32,7 +32,7 @@ The syntax for using a jinja test is as follows
 
 Such as
 
-.. code-block:: console  
+.. code-block:: console
 
     result is failed
 
@@ -159,7 +159,7 @@ The ``version`` test accepts the following operators
 
     <, lt, <=, le, >, gt, >=, ge, ==, =, eq, !=, <>, ne
 
-This test also accepts a 3rd parameter, ``strict`` which defines if strict version parsing as defined by ``distutils.version.StrictVersion`` should be used.  The default is ``False`` (using ``distutils.version.LooseVersion``), ``True`` enables strict version parsing
+This test also accepts a 3rd parameter, ``strict`` which defines if strict version parsing as defined by ``ansible.module_utils.compat.version.StrictVersion`` should be used.  The default is ``False`` (using ``ansible.module_utils.compat.version.LooseVersion``), ``True`` enables strict version parsing
 
 .. code-block:: yaml+jinja
 
@@ -252,10 +252,10 @@ The ``contains`` test is designed to work with the ``select``, ``reject``, ``sel
       - debug:
           msg: "{{ (lacp_groups|selectattr('interfaces', 'contains', 'em1')|first).master }}"
 
-.. versionadded:: 2.4
-
 Testing if a list value is True
 ===============================
+
+.. versionadded:: 2.4
 
 You can use `any` and `all` to check if any or all elements in a list are true or not
 
@@ -316,6 +316,16 @@ The following tests can provide information about a path on the controller
     - debug:
         msg: "path is a mount"
       when: mypath is mount
+
+    - debug:
+        msg: "path is a directory"
+      when: mypath is directory
+      vars:
+         mypath: /my/patth
+
+    - debug:
+        msg: "path is a file"
+      when: "'/my/path' is file"
 
 
 Testing size formats
@@ -416,6 +426,81 @@ The following tasks are illustrative of the tests meant to check the status of t
 
 .. note:: From 2.1, you can also use success, failure, change, and skip so that the grammar matches, for those who need to be strict about it.
 
+.. _type_tests:
+
+Type Tests
+==========
+
+When looking to determine types, it may be tempting to use the ``type_debug`` filter and compare that to the string name of that type, however, you should instead use type test comparisons, such as:
+
+.. code-block:: yaml
+
+    tasks:
+      - name: "String interpretation"
+        vars:
+          a_string: "A string"
+          a_dictionary: {"a": "dictionary"}
+          a_list: ["a", "list"]
+        assert:
+          that:
+          # Note that a string is classed as also being "iterable", "sequence" and "mapping"
+          - a_string is string
+
+          # Note that a dictionary is classed as not being a "string", but is "iterable", "sequence" and "mapping"
+          - a_dictionary is not string and a_dictionary is mapping
+
+          # Note that a list is classed as not being a "string" or "mapping" but is "iterable" and "sequence"
+          - a_list is not string and a_list is not mapping and a_list is iterable
+
+      - name: "Number interpretation"
+        vars:
+          a_float: 1.01
+          a_float_as_string: "1.01"
+          an_integer: 1
+          an_integer_as_string: "1"
+        assert:
+          that:
+          # Both a_float and an_integer are "number", but each has their own type as well
+          - a_float is number and a_float is float
+          - an_integer is number and an_integer is integer
+
+          # Both a_float_as_string and an_integer_as_string are not numbers
+          - a_float_as_string is not number and a_float_as_string is string
+          - an_integer_as_string is not number and a_float_as_string is string
+
+          # a_float or a_float_as_string when cast to a float and then to a string should match the same value cast only to a string
+          - a_float | float | string == a_float | string
+          - a_float_as_string | float | string == a_float_as_string | string
+
+          # Likewise an_integer and an_integer_as_string when cast to an integer and then to a string should match the same value cast only to an integer
+          - an_integer | int | string == an_integer | string
+          - an_integer_as_string | int | string == an_integer_as_string | string
+
+          # However, a_float or a_float_as_string cast as an integer and then a string does not match the same value cast to a string
+          - a_float | int | string != a_float | string
+          - a_float_as_string | int | string != a_float_as_string | string
+
+          # Again, Likewise an_integer and an_integer_as_string cast as a float and then a string does not match the same value cast to a string
+          - an_integer | float | string != an_integer | string
+          - an_integer_as_string | float | string != an_integer_as_string | string
+
+      - name: "Native Boolean interpretation"
+        loop:
+        - yes
+        - true
+        - True
+        - TRUE
+        - no
+        - No
+        - NO
+        - false
+        - False
+        - FALSE
+        assert:
+          that:
+          # Note that while other values may be cast to boolean values, these are the only ones which are natively considered boolean
+          # Note also that `yes` is the only case sensitive variant of these values.
+          - item is boolean
 
 .. _builtin tests: https://jinja.palletsprojects.com/en/latest/templates/#builtin-tests
 

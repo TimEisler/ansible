@@ -8,6 +8,8 @@ __metaclass__ = type
 import os
 import subprocess
 
+import ansible.module_utils.compat.typing as t
+
 from ansible.module_utils.facts.collector import BaseFactCollector
 
 # A list of dicts.  If there is a platform with more than one
@@ -44,7 +46,7 @@ PKG_MGRS = [{'path': '/usr/bin/rpm-ostree', 'name': 'atomic_container'},
 
 class OpenBSDPkgMgrFactCollector(BaseFactCollector):
     name = 'pkg_mgr'
-    _fact_ids = set()
+    _fact_ids = set()  # type: t.Set[str]
     _platform = 'OpenBSD'
 
     def collect(self, module=None, collected_facts=None):
@@ -57,9 +59,14 @@ class OpenBSDPkgMgrFactCollector(BaseFactCollector):
 # the fact ends up being 'pkg_mgr' so stick with that naming/spelling
 class PkgMgrFactCollector(BaseFactCollector):
     name = 'pkg_mgr'
-    _fact_ids = set()
+    _fact_ids = set()  # type: t.Set[str]
     _platform = 'Generic'
     required_facts = set(['distribution'])
+
+    def _pkg_mgr_exists(self, pkg_mgr_name):
+        for cur_pkg_mgr in [pkg_mgr for pkg_mgr in PKG_MGRS if pkg_mgr['name'] == pkg_mgr_name]:
+            if os.path.exists(cur_pkg_mgr['path']):
+                return pkg_mgr_name
 
     def _check_rh_versions(self, pkg_mgr_name, collected_facts):
         if os.path.exists('/run/ostree-booted'):
@@ -68,21 +75,26 @@ class PkgMgrFactCollector(BaseFactCollector):
         if collected_facts['ansible_distribution'] == 'Fedora':
             try:
                 if int(collected_facts['ansible_distribution_major_version']) < 23:
-                    for yum in [pkg_mgr for pkg_mgr in PKG_MGRS if pkg_mgr['name'] == 'yum']:
-                        if os.path.exists(yum['path']):
-                            pkg_mgr_name = 'yum'
-                            break
+                    if self._pkg_mgr_exists('yum'):
+                        pkg_mgr_name = 'yum'
+
                 else:
-                    for dnf in [pkg_mgr for pkg_mgr in PKG_MGRS if pkg_mgr['name'] == 'dnf']:
-                        if os.path.exists(dnf['path']):
-                            pkg_mgr_name = 'dnf'
-                            break
+                    if self._pkg_mgr_exists('dnf'):
+                        pkg_mgr_name = 'dnf'
             except ValueError:
                 # If there's some new magical Fedora version in the future,
                 # just default to dnf
                 pkg_mgr_name = 'dnf'
         elif collected_facts['ansible_distribution'] == 'Amazon':
-            pkg_mgr_name = 'yum'
+            try:
+                if int(collected_facts['ansible_distribution_major_version']) < 2022:
+                    if self._pkg_mgr_exists('yum'):
+                        pkg_mgr_name = 'yum'
+                else:
+                    if self._pkg_mgr_exists('dnf'):
+                        pkg_mgr_name = 'dnf'
+            except ValueError:
+                pkg_mgr_name = 'dnf'
         else:
             # If it's not one of the above and it's Red Hat family of distros, assume
             # RHEL or a clone. For versions of RHEL < 8 that Ansible supports, the
@@ -113,12 +125,22 @@ class PkgMgrFactCollector(BaseFactCollector):
                     pkg_mgr_name = 'apt'
         return pkg_mgr_name
 
+    def pkg_mgrs(self, collected_facts):
+        # Filter out the /usr/bin/pkg because on Altlinux it is actually the
+        # perl-Package (not Solaris package manager).
+        # Since the pkg5 takes precedence over apt, this workaround
+        # is required to select the suitable package manager on Altlinux.
+        if collected_facts['ansible_os_family'] == 'Altlinux':
+            return filter(lambda pkg: pkg['path'] != '/usr/bin/pkg', PKG_MGRS)
+        else:
+            return PKG_MGRS
+
     def collect(self, module=None, collected_facts=None):
         facts_dict = {}
         collected_facts = collected_facts or {}
 
         pkg_mgr_name = 'unknown'
-        for pkg in PKG_MGRS:
+        for pkg in self.pkg_mgrs(collected_facts):
             if os.path.exists(pkg['path']):
                 pkg_mgr_name = pkg['name']
 

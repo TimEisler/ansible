@@ -12,7 +12,7 @@ DOCUMENTATION = """
     description:
         - Run commands or put/fetch on a target via WinRM
         - This plugin allows extra arguments to be passed that are supported by the protocol but not explicitly defined here.
-          They should take the form of variables declared with the following pattern `ansible_winrm_<option>`.
+          They should take the form of variables declared with the following pattern C(ansible_winrm_<option>).
     version_added: "2.0"
     extends_documentation_fragment:
         - connection_pipelining
@@ -34,6 +34,8 @@ DOCUMENTATION = """
         vars:
             - name: ansible_user
             - name: ansible_winrm_user
+        keyword:
+            - name: remote_user
         type: str
       remote_password:
         description: Authentication password for the C(remote_user). Can be supplied as CLI option.
@@ -52,6 +54,8 @@ DOCUMENTATION = """
           - name: ansible_port
           - name: ansible_winrm_port
         default: 5986
+        keyword:
+            - name: port
         type: integer
       scheme:
         description:
@@ -74,6 +78,7 @@ DOCUMENTATION = """
            - If None (the default) the plugin will try to automatically guess the correct list
            - The choices available depend on your version of pywinrm
         type: list
+        elements: string
         vars:
           - name: ansible_winrm_transport
       kerberos_command:

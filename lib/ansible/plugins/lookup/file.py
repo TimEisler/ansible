@@ -27,14 +27,15 @@ DOCUMENTATION = """
         default: False
     notes:
       - if read in variable context, the file can be interpreted as YAML if the content is valid to the parser.
-      - this lookup does not understand 'globing', use the fileglob lookup instead.
+      - this lookup does not understand 'globbing', use the fileglob lookup instead.
 """
 
 EXAMPLES = """
-- debug: msg="the value of foo.txt is {{lookup('file', '/etc/foo.txt') }}"
+- ansible.builtin.debug:
+    msg: "the value of foo.txt is {{lookup('ansible.builtin.file', '/etc/foo.txt') }}"
 
 - name: display multiple file contents
-  debug: var=item
+  ansible.builtin.debug: var=item
   with_file:
     - "/path/to/foo.txt"
     - "bar.txt"  # will be looked in files/ dir relative to play or in role

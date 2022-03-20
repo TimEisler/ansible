@@ -52,6 +52,7 @@ import socket
 import sys
 import tempfile
 import traceback
+import types
 
 from contextlib import contextmanager
 
@@ -65,14 +66,14 @@ try:
     import httplib
 except ImportError:
     # Python 3
-    import http.client as httplib
+    import http.client as httplib  # type: ignore[no-redef]
 
+import ansible.module_utils.compat.typing as t
 import ansible.module_utils.six.moves.http_cookiejar as cookiejar
-import ansible.module_utils.six.moves.urllib.request as urllib_request
 import ansible.module_utils.six.moves.urllib.error as urllib_error
 
 from ansible.module_utils.common.collections import Mapping
-from ansible.module_utils.six import PY3, string_types
+from ansible.module_utils.six import PY2, PY3, string_types
 from ansible.module_utils.six.moves import cStringIO
 from ansible.module_utils.basic import get_distribution, missing_required_lib
 from ansible.module_utils._text import to_bytes, to_native, to_text
@@ -83,13 +84,13 @@ try:
     from urllib.request import AbstractHTTPHandler, BaseHandler
 except ImportError:
     # python2
-    import urllib2 as urllib_request
-    from urllib2 import AbstractHTTPHandler, BaseHandler
+    import urllib2 as urllib_request  # type: ignore[no-redef]
+    from urllib2 import AbstractHTTPHandler, BaseHandler  # type: ignore[no-redef]
 
-urllib_request.HTTPRedirectHandler.http_error_308 = urllib_request.HTTPRedirectHandler.http_error_307
+urllib_request.HTTPRedirectHandler.http_error_308 = urllib_request.HTTPRedirectHandler.http_error_307  # type: ignore[attr-defined]
 
 try:
-    from ansible.module_utils.six.moves.urllib.parse import urlparse, urlunparse
+    from ansible.module_utils.six.moves.urllib.parse import urlparse, urlunparse, unquote
     HAS_URLPARSE = True
 except Exception:
     HAS_URLPARSE = False
@@ -160,14 +161,14 @@ if not HAS_SSLCONTEXT and HAS_SSL:
 # The bundled backports.ssl_match_hostname should really be moved into its own file for processing
 _BUNDLED_METADATA = {"pypi_name": "backports.ssl_match_hostname", "version": "3.7.0.1"}
 
-LOADED_VERIFY_LOCATIONS = set()
+LOADED_VERIFY_LOCATIONS = set()  # type: t.Set[str]
 
 HAS_MATCH_HOSTNAME = True
 try:
     from ssl import match_hostname, CertificateError
 except ImportError:
     try:
-        from backports.ssl_match_hostname import match_hostname, CertificateError
+        from backports.ssl_match_hostname import match_hostname, CertificateError  # type: ignore[misc]
     except ImportError:
         HAS_MATCH_HOSTNAME = False
 
@@ -268,7 +269,7 @@ try:
 
 except ImportError:
     GSSAPI_IMP_ERR = traceback.format_exc()
-    HTTPGSSAPIAuthHandler = None
+    HTTPGSSAPIAuthHandler = None  # type: types.ModuleType | None  # type: ignore[no-redef]
 
 if not HAS_MATCH_HOSTNAME:
     # The following block of code is under the terms and conditions of the
@@ -279,9 +280,9 @@ if not HAS_MATCH_HOSTNAME:
     try:
         # Divergence: Python-3.7+'s _ssl has this exception type but older Pythons do not
         from _ssl import SSLCertVerificationError
-        CertificateError = SSLCertVerificationError
+        CertificateError = SSLCertVerificationError  # type: ignore[misc]
     except ImportError:
-        class CertificateError(ValueError):
+        class CertificateError(ValueError):  # type: ignore[no-redef]
             pass
 
     def _dnsname_match(dn, hostname):
@@ -390,7 +391,7 @@ if not HAS_MATCH_HOSTNAME:
         ip = _inet_paton(ipname.rstrip())
         return ip == host_ip
 
-    def match_hostname(cert, hostname):
+    def match_hostname(cert, hostname):  # type: ignore[misc]
         """Verify that *cert* (in decoded format as returned by
         SSLSocket.getpeercert()) matches the *hostname*.  RFC 2818 and RFC 6125
         rules are followed.
@@ -519,7 +520,7 @@ CustomHTTPSHandler = None
 HTTPSClientAuthHandler = None
 UnixHTTPSConnection = None
 if hasattr(httplib, 'HTTPSConnection') and hasattr(urllib_request, 'HTTPSHandler'):
-    class CustomHTTPSConnection(httplib.HTTPSConnection):
+    class CustomHTTPSConnection(httplib.HTTPSConnection):  # type: ignore[no-redef]
         def __init__(self, *args, **kwargs):
             httplib.HTTPSConnection.__init__(self, *args, **kwargs)
             self.context = None
@@ -554,7 +555,7 @@ if hasattr(httplib, 'HTTPSConnection') and hasattr(urllib_request, 'HTTPSHandler
             else:
                 self.sock = ssl.wrap_socket(sock, keyfile=self.key_file, certfile=self.cert_file, ssl_version=PROTOCOL)
 
-    class CustomHTTPSHandler(urllib_request.HTTPSHandler):
+    class CustomHTTPSHandler(urllib_request.HTTPSHandler):  # type: ignore[no-redef]
 
         def https_open(self, req):
             kwargs = {}
@@ -570,7 +571,7 @@ if hasattr(httplib, 'HTTPSConnection') and hasattr(urllib_request, 'HTTPSHandler
 
         https_request = AbstractHTTPHandler.do_request_
 
-    class HTTPSClientAuthHandler(urllib_request.HTTPSHandler):
+    class HTTPSClientAuthHandler(urllib_request.HTTPSHandler):  # type: ignore[no-redef]
         '''Handles client authentication via cert/key
 
         This is a fairly lightweight extension on HTTPSHandler, and can be used
@@ -610,7 +611,7 @@ if hasattr(httplib, 'HTTPSConnection') and hasattr(urllib_request, 'HTTPSHandler
         yield
         httplib.HTTPConnection.connect = _connect
 
-    class UnixHTTPSConnection(httplib.HTTPSConnection):
+    class UnixHTTPSConnection(httplib.HTTPSConnection):  # type: ignore[no-redef]
         def __init__(self, unix_socket):
             self._unix_socket = unix_socket
 
@@ -755,6 +756,30 @@ def extract_pem_certs(b_data):
         yield match.group(0)
 
 
+def get_response_filename(response):
+    url = response.geturl()
+    path = urlparse(url)[2]
+    filename = os.path.basename(path.rstrip('/')) or None
+    if filename:
+        filename = unquote(filename)
+
+    return response.headers.get_param('filename', header='content-disposition') or filename
+
+
+def parse_content_type(response):
+    if PY2:
+        get_type = response.headers.gettype
+        get_param = response.headers.getparam
+    else:
+        get_type = response.headers.get_content_type
+        get_param = response.headers.get_param
+
+    content_type = (get_type() or 'application/octet-stream').split(',')[0]
+    main_type, sub_type = content_type.split('/')
+    charset = (get_param('charset') or 'utf-8').split(',')[0]
+    return content_type, main_type, sub_type, charset
+
+
 class RequestWithMethod(urllib_request.Request):
     '''
     Workaround for using DELETE/PUT/etc with urllib2
@@ -826,7 +851,7 @@ def RedirectHandlerFactory(follow_redirects=None, validate_certs=True, ca_path=N
             # Be conciliant with URIs containing a space
             newurl = newurl.replace(' ', '%20')
 
-            # Suport redirect with payload and original headers
+            # Support redirect with payload and original headers
             if code in (307, 308):
                 # Preserve payload and headers
                 headers = req.headers
@@ -954,6 +979,9 @@ class SSLValidationHandler(urllib_request.BaseHandler):
             ca_certs.append('/etc/openssl/certs')
         elif system == u'SunOS':
             paths_checked.append('/opt/local/etc/openssl/certs')
+        elif system == u'AIX':
+            paths_checked.append('/var/ssl/certs')
+            paths_checked.append('/opt/freeware/etc/ssl/certs')
 
         # fall back to a user-deployed cert in a standard
         # location if the OS platform one is not available
@@ -1813,10 +1841,18 @@ def fetch_url(module, url, data=None, headers=None, method=None,
     except MissingModuleError as e:
         module.fail_json(msg=to_text(e), exception=e.import_traceback)
     except urllib_error.HTTPError as e:
+        r = e
         try:
+            if e.fp is None:
+                # Certain HTTPError objects may not have the ability to call ``.read()`` on Python 3
+                # This is not handled gracefully in Python 3, and instead an exception is raised from
+                # tempfile, due to ``urllib.response.addinfourl`` not being initialized
+                raise AttributeError
             body = e.read()
         except AttributeError:
             body = ''
+        else:
+            e.close()
 
         # Try to add exception info to the output but don't fail if we can't
         try:

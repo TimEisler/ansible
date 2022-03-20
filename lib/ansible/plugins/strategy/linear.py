@@ -156,13 +156,13 @@ class StrategyModule(StrategyBase):
                 host_state_task = host_tasks.get(host.name)
                 if host_state_task is None:
                     continue
-                (s, t) = host_state_task
-                s = iterator.get_active_state(s)
-                if t is None:
+                (state, task) = host_state_task
+                s = iterator.get_active_state(state)
+                if task is None:
                     continue
                 if s.run_state == cur_state and s.cur_block == cur_block:
-                    new_t = iterator.get_next_task_for_host(host)
-                    rvals.append((host, t))
+                    iterator.set_state_for_host(host.name, state)
+                    rvals.append((host, task))
                 else:
                     rvals.append((host, noop_task))
             display.debug("done advancing hosts to next task")
@@ -339,7 +339,6 @@ class StrategyModule(StrategyBase):
                     variable_manager=self._variable_manager
                 )
 
-                include_failure = False
                 if len(included_files) > 0:
                     display.debug("we have included files to process")
 
@@ -385,11 +384,13 @@ class StrategyModule(StrategyBase):
                         except AnsibleParserError:
                             raise
                         except AnsibleError as e:
+                            for r in included_file._results:
+                                r._result['failed'] = True
+
                             for host in included_file._hosts:
                                 self._tqm._failed_hosts[host.name] = True
                                 iterator.mark_host_failed(host)
                             display.error(to_text(e), wrap_text=False)
-                            include_failure = True
                             continue
 
                     # finally go through all of the hosts and append the

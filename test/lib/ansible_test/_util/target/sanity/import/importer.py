@@ -8,17 +8,28 @@ def main():
     Main program function used to isolate globals from imported code.
     Changes to globals in imported modules on Python 2.x will overwrite our own globals.
     """
+    import os
+    import sys
+    import types
+
+    # preload an empty ansible._vendor module to prevent use of any embedded modules during the import test
+    vendor_module_name = 'ansible._vendor'
+
+    vendor_module = types.ModuleType(vendor_module_name)
+    vendor_module.__file__ = os.path.join(os.path.sep.join(os.path.abspath(__file__).split(os.path.sep)[:-8]), 'lib/ansible/_vendor/__init__.py')
+    vendor_module.__path__ = []
+    vendor_module.__package__ = vendor_module_name
+
+    sys.modules[vendor_module_name] = vendor_module
+
     import ansible
     import contextlib
     import datetime
     import json
-    import os
     import re
     import runpy
     import subprocess
-    import sys
     import traceback
-    import types
     import warnings
 
     ansible_path = os.path.dirname(os.path.dirname(ansible.__file__))
@@ -28,7 +39,6 @@ def main():
     collection_full_name = os.environ.get('SANITY_COLLECTION_FULL_NAME')
     collection_root = os.environ.get('ANSIBLE_COLLECTIONS_PATH')
     import_type = os.environ.get('SANITY_IMPORTER_TYPE')
-    ansible_controller_min_python_version = tuple(int(x) for x in os.environ.get('ANSIBLE_CONTROLLER_MIN_PYTHON_VERSION', '0').split('.'))
 
     try:
         # noinspection PyCompatibility
@@ -48,15 +58,9 @@ def main():
         # allow importing code from collections when testing a collection
         from ansible.module_utils.common.text.converters import to_bytes, to_text, to_native, text_type
 
-        if sys.version_info >= ansible_controller_min_python_version:
-            # noinspection PyProtectedMember
-            from ansible.utils.collection_loader._collection_finder import _AnsibleCollectionFinder
-            from ansible.utils.collection_loader import _collection_finder
-        else:
-            # noinspection PyProtectedMember
-            from ansible_test._internal.legacy_collection_loader._collection_finder import _AnsibleCollectionFinder
-            # noinspection PyProtectedMember
-            from ansible_test._internal.legacy_collection_loader import _collection_finder
+        # noinspection PyProtectedMember
+        from ansible.utils.collection_loader._collection_finder import _AnsibleCollectionFinder
+        from ansible.utils.collection_loader import _collection_finder
 
         yaml_to_dict_cache = {}
 
@@ -110,8 +114,13 @@ def main():
         # do not support collection loading when not testing a collection
         collection_loader = None
 
-    # remove all modules under the ansible package
-    list(map(sys.modules.pop, [m for m in sys.modules if m.partition('.')[0] == ansible.__name__]))
+    if collection_loader and import_type == 'plugin':
+        # do not unload ansible code for collection plugin (not module) tests
+        # doing so could result in the collection loader being initialized multiple times
+        pass
+    else:
+        # remove all modules under the ansible package, except the preloaded vendor module
+        list(map(sys.modules.pop, [m for m in sys.modules if m.partition('.')[0] == ansible.__name__ and m != vendor_module_name]))
 
     if import_type == 'module':
         # pre-load an empty ansible package to prevent unwanted code in __init__.py from loading
@@ -433,7 +442,7 @@ def main():
         try:
             yield
         finally:
-            if import_type == 'plugin':
+            if import_type == 'plugin' and not collection_loader:
                 from ansible.utils.collection_loader._collection_finder import _AnsibleCollectionFinder
                 _AnsibleCollectionFinder._remove()  # pylint: disable=protected-access
 
@@ -482,6 +491,11 @@ def main():
         with warnings.catch_warnings():
             warnings.simplefilter('error')
 
+            if collection_loader and import_type == 'plugin':
+                warnings.filterwarnings(
+                    "ignore",
+                    "AnsibleCollectionFinder has already been configured")
+
             if sys.version_info[0] == 2:
                 warnings.filterwarnings(
                     "ignore",
@@ -525,15 +539,6 @@ def main():
                 warnings.filterwarnings(
                     "ignore",
                     r"_Ansible.*Loader\.exec_module\(\) not found; falling back to load_module\(\)",
-                )
-
-                # Temporary solution until there is a vendored copy of distutils.version in module_utils.
-                # Some of our dependencies such as packaging.tags also import distutils, which we have no control over
-                # The warning text is: The distutils package is deprecated and slated for removal in Python 3.12.
-                # Use setuptools or check PEP 632 for potential alternatives
-                warnings.filterwarnings(
-                    "ignore",
-                    r"The distutils package is deprecated and slated for removal in Python 3\.12\. .*",
                 )
 
             try:

@@ -1,5 +1,4 @@
-from __future__ import (absolute_import, division, print_function)
-__metaclass__ = type
+from __future__ import annotations
 
 import contextlib
 import fnmatch
@@ -234,8 +233,9 @@ def install_sdist(tmp_dir, sdist_dir):
         raise Exception('sdist install failed:\n%s' % stderr)
 
     # Determine the prefix for the installed files
-    match = re.search('^creating (%s/.*?/(?:site|dist)-packages)/ansible$' %
+    match = re.search('^copying .* -> (%s/.*?/(?:site|dist)-packages)/ansible$' %
                       tmp_dir, stdout, flags=re.M)
+
     return match.group(1)
 
 
