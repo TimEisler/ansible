@@ -263,7 +263,7 @@ def integration_test_environment(
     root_temp_dir = os.path.join(ResultType.TMP.path, 'integration')
 
     prefix = '%s-' % target.name
-    suffix = u'-\u00c5\u00d1\u015a\u00cc\u03b2\u0141\u00c8'
+    suffix = '-\u00c5\u00d1\u015a\u00cc\u03b2\u0141\u00c8'
 
     if args.no_temp_unicode or 'no/temp_unicode/' in target.aliases:
         display.warning('Disabling unicode in the temp work dir is a temporary debugging feature that may be removed in the future without notice.')
@@ -619,7 +619,7 @@ def command_integration_script(
                 cmd += ['-e', '@%s' % config_path]
 
             env.update(coverage_manager.get_environment(target.name, target.aliases))
-            cover_python(args, host_state.controller_profile.python, cmd, target.name, env, cwd=cwd)
+            cover_python(args, host_state.controller_profile.python, cmd, target.name, env, cwd=cwd, capture=False)
 
 
 def command_integration_role(
@@ -738,7 +738,7 @@ def command_integration_role(
             env['ANSIBLE_ROLES_PATH'] = test_env.targets_dir
 
             env.update(coverage_manager.get_environment(target.name, target.aliases))
-            cover_python(args, host_state.controller_profile.python, cmd, target.name, env, cwd=cwd)
+            cover_python(args, host_state.controller_profile.python, cmd, target.name, env, cwd=cwd, capture=False)
 
 
 def run_setup_targets(

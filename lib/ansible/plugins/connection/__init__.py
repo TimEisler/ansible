@@ -8,6 +8,7 @@ __metaclass__ = type
 import fcntl
 import os
 import shlex
+import typing as t
 
 from abc import abstractmethod
 from functools import wraps
@@ -48,7 +49,7 @@ class ConnectionBase(AnsiblePlugin):
     # When running over this connection type, prefer modules written in a certain language
     # as discovered by the specified file extension.  An empty string as the
     # language means any language.
-    module_implementation_preferences = ('',)  # type: tuple[str, ...]
+    module_implementation_preferences = ('',)  # type: t.Iterable[str]
     allow_executable = True
 
     # the following control whether or not the connection supports the
@@ -109,17 +110,8 @@ class ConnectionBase(AnsiblePlugin):
         list ['-o', 'Foo=1', '-o', 'Bar=foo bar'] that can be added to
         the argument list. The list will not contain any empty elements.
         """
-        try:
-            # Python 2.6.x shlex doesn't handle unicode type so we have to
-            # convert args to byte string for that case.  More efficient to
-            # try without conversion first but python2.6 doesn't throw an
-            # exception, it merely mangles the output:
-            # >>> shlex.split(u't e')
-            # ['t\x00\x00\x00', '\x00\x00\x00e\x00\x00\x00']
-            return [to_text(x.strip()) for x in shlex.split(to_bytes(argstring)) if x.strip()]
-        except AttributeError:
-            # In Python3, shlex.split doesn't work on a byte string.
-            return [to_text(x.strip()) for x in shlex.split(argstring) if x.strip()]
+        # In Python3, shlex.split doesn't work on a byte string.
+        return [to_text(x.strip()) for x in shlex.split(argstring) if x.strip()]
 
     @property
     @abstractmethod

@@ -132,25 +132,28 @@ def get_podman_host_ip():  # type: () -> str
 
 
 @cache
-def get_podman_default_hostname():  # type: () -> str
-    """Return the default hostname of the Podman service.
-
-    --format was added in podman 3.3.0, this functionality depends on it's availability
+def get_podman_default_hostname():  # type: () -> t.Optional[str]
     """
+    Return the default hostname of the Podman service.
+
+    --format was added in podman 3.3.0, this functionality depends on its availability
+    """
+    hostname: t.Optional[str] = None
     try:
         stdout = raw_command(['podman', 'system', 'connection', 'list', '--format=json'], capture=True)[0]
     except SubprocessError:
         stdout = '[]'
 
-    connections = json.loads(stdout)
+    try:
+        connections = json.loads(stdout)
+    except json.decoder.JSONDecodeError:
+        return hostname
 
     for connection in connections:
         # A trailing indicates the default
         if connection['Name'][-1] == '*':
             hostname = connection['URI']
             break
-    else:
-        hostname = None
 
     return hostname
 
@@ -266,7 +269,7 @@ def docker_pull(args, image):  # type: (EnvironmentConfig, str) -> None
 
     for _iteration in range(1, 10):
         try:
-            docker_command(args, ['pull', image])
+            docker_command(args, ['pull', image], capture=False)
             return
         except SubprocessError:
             display.warning('Failed to pull docker image "%s". Waiting a few seconds before trying again.' % image)
@@ -277,7 +280,7 @@ def docker_pull(args, image):  # type: (EnvironmentConfig, str) -> None
 
 def docker_cp_to(args, container_id, src, dst):  # type: (EnvironmentConfig, str, str, str) -> None
     """Copy a file to the specified container."""
-    docker_command(args, ['cp', src, '%s:%s' % (container_id, dst)])
+    docker_command(args, ['cp', src, '%s:%s' % (container_id, dst)], capture=True)
 
 
 def docker_run(
@@ -508,10 +511,12 @@ def docker_exec(
         args,  # type: EnvironmentConfig
         container_id,  # type: str
         cmd,  # type: t.List[str]
+        capture,  # type: bool
         options=None,  # type: t.Optional[t.List[str]]
-        capture=False,  # type: bool
         stdin=None,  # type: t.Optional[t.IO[bytes]]
         stdout=None,  # type: t.Optional[t.IO[bytes]]
+        interactive=False,  # type: bool
+        force_stdout=False,  # type: bool
         data=None,  # type: t.Optional[str]
 ):  # type: (...) -> t.Tuple[t.Optional[str], t.Optional[str]]
     """Execute the given command in the specified container."""
@@ -521,7 +526,8 @@ def docker_exec(
     if data or stdin or stdout:
         options.append('-i')
 
-    return docker_command(args, ['exec'] + options + [container_id] + cmd, capture=capture, stdin=stdin, stdout=stdout, data=data)
+    return docker_command(args, ['exec'] + options + [container_id] + cmd, capture=capture, stdin=stdin, stdout=stdout, interactive=interactive,
+                          force_stdout=force_stdout, data=data)
 
 
 def docker_info(args):  # type: (CommonConfig) -> t.Dict[str, t.Any]
@@ -539,18 +545,23 @@ def docker_version(args):  # type: (CommonConfig) -> t.Dict[str, t.Any]
 def docker_command(
         args,  # type: CommonConfig
         cmd,  # type: t.List[str]
-        capture=False,  # type: bool
+        capture,  # type: bool
         stdin=None,  # type: t.Optional[t.IO[bytes]]
         stdout=None,  # type: t.Optional[t.IO[bytes]]
+        interactive=False,  # type: bool
+        force_stdout=False,  # type: bool
         always=False,  # type: bool
         data=None,  # type: t.Optional[str]
 ):  # type: (...) -> t.Tuple[t.Optional[str], t.Optional[str]]
     """Run the specified docker command."""
     env = docker_environment()
     command = [require_docker().command]
+
     if command[0] == 'podman' and _get_podman_remote():
         command.append('--remote')
-    return run_command(args, command + cmd, env=env, capture=capture, stdin=stdin, stdout=stdout, always=always, data=data)
+
+    return run_command(args, command + cmd, env=env, capture=capture, stdin=stdin, stdout=stdout, interactive=interactive, always=always,
+                       force_stdout=force_stdout, data=data)
 
 
 def docker_environment():  # type: () -> t.Dict[str, str]

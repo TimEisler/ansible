@@ -10,8 +10,16 @@ from ...constants import (
     SUPPORTED_PYTHON_VERSIONS,
 )
 
+from ...util import (
+    REMOTE_ARCHITECTURES,
+)
+
 from ...host_configs import (
     OriginConfig,
+)
+
+from ...become import (
+    SUPPORTED_BECOME_METHODS,
 )
 
 from ..argparsing.parsers import (
@@ -125,7 +133,9 @@ class PosixRemoteKeyValueParser(KeyValueParser):
     def get_parsers(self, state):  # type: (ParserState) -> t.Dict[str, Parser]
         """Return a dictionary of key names and value parsers."""
         return dict(
+            become=ChoicesParser(list(SUPPORTED_BECOME_METHODS)),
             provider=ChoicesParser(REMOTE_PROVIDERS),
+            arch=ChoicesParser(REMOTE_ARCHITECTURES),
             python=PythonParser(versions=self.versions, allow_venv=False, allow_default=self.allow_default),
         )
 
@@ -136,7 +146,9 @@ class PosixRemoteKeyValueParser(KeyValueParser):
         section_name = 'remote options'
 
         state.sections[f'{"controller" if self.controller else "target"} {section_name} (comma separated):'] = '\n'.join([
+            f'  become={ChoicesParser(list(SUPPORTED_BECOME_METHODS)).document(state)}',
             f'  provider={ChoicesParser(REMOTE_PROVIDERS).document(state)}',
+            f'  arch={ChoicesParser(REMOTE_ARCHITECTURES).document(state)}',
             f'  python={python_parser.document(state)}',
         ])
 
@@ -149,6 +161,7 @@ class WindowsRemoteKeyValueParser(KeyValueParser):
         """Return a dictionary of key names and value parsers."""
         return dict(
             provider=ChoicesParser(REMOTE_PROVIDERS),
+            arch=ChoicesParser(REMOTE_ARCHITECTURES),
         )
 
     def document(self, state):  # type: (DocumentationState) -> t.Optional[str]
@@ -157,6 +170,7 @@ class WindowsRemoteKeyValueParser(KeyValueParser):
 
         state.sections[f'target {section_name} (comma separated):'] = '\n'.join([
             f'  provider={ChoicesParser(REMOTE_PROVIDERS).document(state)}',
+            f'  arch={ChoicesParser(REMOTE_ARCHITECTURES).document(state)}',
         ])
 
         return f'{{{section_name}}}'
@@ -168,6 +182,7 @@ class NetworkRemoteKeyValueParser(KeyValueParser):
         """Return a dictionary of key names and value parsers."""
         return dict(
             provider=ChoicesParser(REMOTE_PROVIDERS),
+            arch=ChoicesParser(REMOTE_ARCHITECTURES),
             collection=AnyParser(),
             connection=AnyParser(),
         )
@@ -178,7 +193,8 @@ class NetworkRemoteKeyValueParser(KeyValueParser):
 
         state.sections[f'target {section_name} (comma separated):'] = '\n'.join([
             f'  provider={ChoicesParser(REMOTE_PROVIDERS).document(state)}',
-            '  collection={collecton}',
+            f'  arch={ChoicesParser(REMOTE_ARCHITECTURES).document(state)}',
+            '  collection={collection}',
             '  connection={connection}',
         ])
 

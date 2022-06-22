@@ -22,7 +22,7 @@ __metaclass__ = type
 import os
 
 from units.compat import unittest
-from mock import MagicMock
+from unittest.mock import MagicMock
 from units.mock.loader import DictDataLoader
 
 from ansible import errors
@@ -321,12 +321,14 @@ class TestLoadListOfTasks(unittest.TestCase, MixinForMocks):
 
     def test_one_bogus_include_role_use_handlers(self):
         ds = [{'include_role': {'name': 'bogus_role'}, 'collections': []}]
-        res = helpers.load_list_of_tasks(ds, play=self.mock_play, use_handlers=True,
-                                         block=self.mock_block,
-                                         variable_manager=self.mock_variable_manager,
-                                         loader=self.fake_role_loader)
-        self.assertEqual(len(res), 1)
-        self._assert_is_task_list_or_blocks(res)
+
+        self.assertRaises(errors.AnsibleError, helpers.load_list_of_tasks,
+                          ds,
+                          self.mock_play,
+                          True,  # use_handlers
+                          self.mock_block,
+                          self.mock_variable_manager,
+                          self.fake_role_loader)
 
 
 class TestLoadListOfRoles(unittest.TestCase, MixinForMocks):

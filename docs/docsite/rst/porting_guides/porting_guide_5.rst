@@ -127,21 +127,133 @@ Networking
 
 No notable changes
 
+Porting Guide for v5.9.0
+========================
+
+Added Collections
+-----------------
+
+- cisco.dnac (version 6.4.0)
+- community.sap_libs (version 1.1.0)
+
+Major Changes
+-------------
+
+fortinet.fortios
+~~~~~~~~~~~~~~~~
+
+- Support FortiOS 7.0.2, 7.0.3, 7.0.4, 7.0.5.
+
+Deprecated Features
+-------------------
+
+- The collection ``community.sap`` has been renamed to ``community.sap_libs``. For now both collections are included in Ansible. The content in ``community.sap`` will be replaced with deprecated redirects to the new collection in Ansible 7.0.0, and these redirects will eventually be removed from Ansible. Please update your FQCNs for ``community.sap``.
+
+community.docker
+~~~~~~~~~~~~~~~~
+
+- Support for Ansible 2.9 and ansible-base 2.10 is deprecated, and will be removed in the next major release (community.docker 3.0.0). Some modules might still work with these versions afterwards, but we will no longer keep compatibility code that was needed to support them (https://github.com/ansible-collections/community.docker/pull/361).
+- The dependency on docker-compose for Execution Environments is deprecated and will be removed in community.docker 3.0.0. The `Python docker-compose library <https://pypi.org/project/docker-compose/>`__ is unmaintained and can cause dependency issues. You can manually still install it in an Execution Environment when needed (https://github.com/ansible-collections/community.docker/pull/373).
+- Various modules - the default of ``tls_hostname`` that was supposed to be removed in community.docker 2.0.0 will now be removed in version 3.0.0 (https://github.com/ansible-collections/community.docker/pull/362).
+- docker_stack - the return values ``out`` and ``err`` that were supposed to be removed in community.docker 2.0.0 will now be removed in version 3.0.0 (https://github.com/ansible-collections/community.docker/pull/362).
+
+Porting Guide for v5.8.0
+========================
+
+Added Collections
+-----------------
+
+- vmware.vmware_rest (version 2.1.5)
+
+Breaking Changes
+----------------
+
+vmware.vmware_rest
+~~~~~~~~~~~~~~~~~~
+
+- The vmware_rest 2.0.0 support vSphere 7.0.2 onwards.
+- vcenter_vm_storage_policy - the format of the ``disks`` parameter has changed.
+- vcenter_vm_storage_policy - the module has a new mandatory paramter: ``vm_home``.
+
+Major Changes
+-------------
+
+community.mysql
+~~~~~~~~~~~~~~~
+
+- The community.mysql collection no longer supports ``Ansible 2.9`` and ``ansible-base 2.10``. While we take no active measures to prevent usage and there are no plans to introduce incompatible code to the modules, we will stop testing against ``Ansible 2.9`` and ``ansible-base 2.10``. Both will very soon be End of Life and if you are still using them, you should consider upgrading to the ``latest Ansible / ansible-core 2.11 or later`` as soon as possible (https://github.com/ansible-collections/community.mysql/pull/343).
+
+community.postgresql
+~~~~~~~~~~~~~~~~~~~~
+
+- The community.postgresql collection no longer supports ``Ansible 2.9`` and ``ansible-base 2.10``. While we take no active measures to prevent usage and there are no plans to introduce incompatible code to the modules, we will stop testing against ``Ansible 2.9`` and ``ansible-base 2.10``. Both will very soon be End of Life and if you are still using them, you should consider upgrading to the ``latest Ansible / ansible-core 2.11 or later`` as soon as possible (https://github.com/ansible-collections/community.postgresql/pull/245).
+
+Deprecated Features
+-------------------
+
+community.hashi_vault
+~~~~~~~~~~~~~~~~~~~~~
+
+- token_validate options - the shared auth option ``token_validate`` will change its default from ``True`` to ``False`` in community.hashi_vault version 4.0.0. The ``vault_login`` lookup and module will keep the default value of ``True`` (https://github.com/ansible-collections/community.hashi_vault/issues/248).
+
+community.network
+~~~~~~~~~~~~~~~~~
+
+- Support for Ansible 2.9 and ansible-base 2.10 is deprecated, and will be removed in the next major release (community.network 4.0.0) this spring. While most content will probably still work with ansible-base 2.10, we will remove symbolic links for modules and action plugins, which will make it impossible to use them with Ansible 2.9 anymore. Please use community.network 3.x.y with Ansible 2.9 and ansible-base 2.10, as these releases will continue to support Ansible 2.9 and ansible-base 2.10 even after they are End of Life (https://github.com/ansible-community/community-topics/issues/50, https://github.com/ansible-collections/community.network/pull/382).
+
+vmware.vmware_rest
+~~~~~~~~~~~~~~~~~~
+
+- vcenter_vm_storage_policy_compliance - drop the module, it returns 404 error.
+- vcenter_vm_tools - remove the ``upgrade`` state.
+- vcenter_vm_tools_installer - remove the module from the collection.
+
+Porting Guide for v5.7.0
+========================
+
+Major Changes
+-------------
+
+community.postgresql
+~~~~~~~~~~~~~~~~~~~~
+
+- postgresql_user - the ``priv`` argument has been deprecated and will be removed in ``community.postgresql 3.0.0``. Please use the ``postgresql_privs`` module to grant/revoke privileges instead (https://github.com/ansible-collections/community.postgresql/issues/212).
+
+fortinet.fortios
+~~~~~~~~~~~~~~~~
+
+- Support FortiOS 7.0.2, 7.0.3, 7.0.4, 7.0.5.
+
+Deprecated Features
+-------------------
+
+community.general
+~~~~~~~~~~~~~~~~~
+
+- nmcli - deprecate default hairpin mode for a bridge. This so we can change it to ``false`` in community.general 7.0.0, as this is also the default in ``nmcli`` (https://github.com/ansible-collections/community.general/pull/4334).
+- proxmox inventory plugin - the current default ``true`` of the ``want_proxmox_nodes_ansible_host`` option has been deprecated. The default will change to ``false`` in community.general 6.0.0. To keep the current behavior, explicitly set ``want_proxmox_nodes_ansible_host`` to ``true`` in your inventory configuration. We suggest to already switch to the new behavior by explicitly setting it to ``false``, and by using ``compose:`` to set ``ansible_host`` to the correct value. See the examples in the plugin documentation for details (https://github.com/ansible-collections/community.general/pull/4466).
+
+Porting Guide for v5.6.0
+========================
+
+Added Collections
+-----------------
+
+- community.sap (version 1.0.0)
+
+Deprecated Features
+-------------------
+
+cisco.ios
+~~~~~~~~~
+
+- Deprecates lldp module.
+
 Porting Guide for v5.5.0
 ========================
 
 Known Issues
 ------------
-
-cisco.ios
-~~~~~~~~~
-
-- `ios_bgp_global` - Added capability of configure network options.
-- `ios_bgp_global` - Added community and local_preference for route_reflector_client.
-- `ios_bgp_global` - Added update_source for neighbors.
-- `ios_bgp_global` - Correct misspelled attributes with alternates/alias.
-- `ios_bgp_global` - Facts and config code optimized for using rm_templates.
-- `ios_bgp_global` - Parsers added for non-implemented attributes.
 
 community.general
 ~~~~~~~~~~~~~~~~~

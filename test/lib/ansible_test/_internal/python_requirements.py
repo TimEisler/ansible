@@ -8,10 +8,6 @@ import os
 import re
 import typing as t
 
-from .constants import (
-    COVERAGE_REQUIRED_VERSION,
-)
-
 from .encoding import (
     to_text,
     to_bytes,
@@ -59,9 +55,15 @@ from .connections import (
     Connection,
 )
 
+from .coverage_util import (
+    get_coverage_version,
+)
+
 QUIET_PIP_SCRIPT_PATH = os.path.join(ANSIBLE_TEST_TARGET_ROOT, 'setup', 'quiet_pip.py')
 REQUIREMENTS_SCRIPT_PATH = os.path.join(ANSIBLE_TEST_TARGET_ROOT, 'setup', 'requirements.py')
 
+# IMPORTANT: Keep this in sync with the ansible-test.txt requirements file.
+VIRTUALENV_VERSION = '16.7.12'
 
 # Pip Abstraction
 
@@ -211,10 +213,10 @@ def collect_requirements(
     if virtualenv:
         # sanity tests on Python 2.x install virtualenv when it is too old or is not already installed and the `--requirements` option is given
         # the last version of virtualenv with no dependencies is used to minimize the changes made outside a virtual environment
-        commands.extend(collect_package_install(packages=['virtualenv==16.7.12'], constraints=False))
+        commands.extend(collect_package_install(packages=[f'virtualenv=={VIRTUALENV_VERSION}'], constraints=False))
 
     if coverage:
-        commands.extend(collect_package_install(packages=[f'coverage=={COVERAGE_REQUIRED_VERSION}'], constraints=False))
+        commands.extend(collect_package_install(packages=[f'coverage=={get_coverage_version(python.version).coverage_version}'], constraints=False))
 
     if cryptography:
         commands.extend(collect_package_install(packages=get_cryptography_requirements(python)))
@@ -261,7 +263,7 @@ def run_pip(
 
     if not args.explain:
         try:
-            connection.run([python.path], data=script)
+            connection.run([python.path], data=script, capture=False)
         except SubprocessError:
             script = prepare_pip_script([PipVersion()])
 

@@ -39,6 +39,7 @@ from .util import (
     get_available_python_versions,
     str_to_version,
     version_to_str,
+    Architecture,
 )
 
 
@@ -206,6 +207,7 @@ class RemoteConfig(HostConfig, metaclass=abc.ABCMeta):
     """Base class for remote host configuration."""
     name: t.Optional[str] = None
     provider: t.Optional[str] = None
+    arch: t.Optional[str] = None
 
     @property
     def platform(self):  # type: () -> str
@@ -227,6 +229,7 @@ class RemoteConfig(HostConfig, metaclass=abc.ABCMeta):
             self.provider = None
 
         self.provider = self.provider or defaults.provider or 'aws'
+        self.arch = self.arch or defaults.arch or Architecture.X86_64
 
     @property
     def is_managed(self):  # type: () -> bool
@@ -330,7 +333,7 @@ class DockerConfig(ControllerHostConfig, PosixConfig):
 @dataclasses.dataclass
 class PosixRemoteConfig(RemoteConfig, ControllerHostConfig, PosixConfig):
     """Configuration for a POSIX remote host."""
-    arch: t.Optional[str] = None
+    become: t.Optional[str] = None
 
     def get_defaults(self, context):  # type: (HostContext) -> PosixRemoteCompletionConfig
         """Return the default settings."""
@@ -349,6 +352,14 @@ class PosixRemoteConfig(RemoteConfig, ControllerHostConfig, PosixConfig):
 
         return [ControllerConfig(python=NativePythonConfig(version=version, path=path)) for version, path in pythons.items()]
 
+    def apply_defaults(self, context, defaults):  # type: (HostContext, CompletionConfig) -> None
+        """Apply default settings."""
+        assert isinstance(defaults, PosixRemoteCompletionConfig)
+
+        super().apply_defaults(context, defaults)
+
+        self.become = self.become or defaults.become
+
     @property
     def have_root(self):  # type: () -> bool
         """True if root is available, otherwise False."""
@@ -362,7 +373,7 @@ class WindowsConfig(HostConfig, metaclass=abc.ABCMeta):
 
 @dataclasses.dataclass
 class WindowsRemoteConfig(RemoteConfig, WindowsConfig):
-    """Configuration for a remoe Windows host."""
+    """Configuration for a remote Windows host."""
     def get_defaults(self, context):  # type: (HostContext) -> WindowsRemoteCompletionConfig
         """Return the default settings."""
         return filter_completion(windows_completion()).get(self.name) or windows_completion().get(self.platform)
@@ -380,7 +391,7 @@ class NetworkConfig(HostConfig, metaclass=abc.ABCMeta):
 
 @dataclasses.dataclass
 class NetworkRemoteConfig(RemoteConfig, NetworkConfig):
-    """Configuration for a remoe network host."""
+    """Configuration for a remote network host."""
     collection: t.Optional[str] = None
     connection: t.Optional[str] = None
 
@@ -388,6 +399,7 @@ class NetworkRemoteConfig(RemoteConfig, NetworkConfig):
         """Return the default settings."""
         return filter_completion(network_completion()).get(self.name) or NetworkRemoteCompletionConfig(
             name=self.name,
+            placeholder=True,
         )
 
     def apply_defaults(self, context, defaults):  # type: (HostContext, CompletionConfig) -> None
@@ -419,7 +431,7 @@ class OriginConfig(ControllerHostConfig, PosixConfig):
     @property
     def have_root(self):  # type: () -> bool
         """True if root is available, otherwise False."""
-        return os.getuid() != 0
+        return os.getuid() == 0
 
 
 @dataclasses.dataclass

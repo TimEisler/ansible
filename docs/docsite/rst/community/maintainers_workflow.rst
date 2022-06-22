@@ -1,20 +1,5 @@
 .. _maintainers_workflow:
 
-.. _Releasing:
-
-Releasing collections
-======================
-
-Collection maintainers release all supported stable versions of the collections regularly,
-provided that there have been enough changes merged to release.
-
-Generally, releasing in the collections consists of:
-
-1. Planning and announcement.
-2. Generating a changelog.
-3. Creating a release git tag and pushing it.
-4. Automatic publishing the release tarball on `Ansible Galaxy <https://galaxy.ansible.com/>`_ by `Zuul <https://dashboard.zuul.ansible.com/t/ansible/builds?pipeline=release>`_.
-5. Final announcement.
 
 Backporting and Ansible inclusion
 ==================================
@@ -23,8 +8,8 @@ Each collection community can set its own rules and workflow for managing pull r
 
 * :ref:`code_of_conduct`
 * :ref:`maintainer_requirements`
-* :ref:`Committer guidelines <committer_general_rules>`.
-* `PR review checklist <https://github.com/ansible/community-docs/blob/main/review_checklist.rst>`_
+* :ref:`Committer guidelines <committer_general_rules>`
+* :ref:`PR review checklist<review_checklist>`
 
 There can be two kinds of maintainers: :ref:`collection_maintainers` and :ref:`module_maintainers`.
 
@@ -59,6 +44,20 @@ For more information about the collection bot and its interface,
 see to the `Collection bot overview <https://github.com/ansible-community/collection_bot/blob/main/ISSUE_HELP.md>`_.
 
 
+Releasing a collection
+----------------------
+
+Collection maintainers are responsible for releasing new versions of a collection. Generally, releasing in the collections consists of:
+
+#. Planning and announcement.
+#. Generating a changelog.
+#. Creating a release git tag and pushing it.
+#. Automaticly publishing the release tarball on `Ansible Galaxy <https://galaxy.ansible.com/>`_ through the `Zuul dashboard <https://dashboard.zuul.ansible.com/t/ansible/builds?pipeline=release>`_.
+#. Final announcement.
+#. Optionally, `file a request to include a new collection into the Ansible package <https://github.com/ansible-collections/ansible-inclusion>`_.
+
+See :ref:`releasing_collections` for details.
+
 .. _Backporting:
 
 Backporting
@@ -72,10 +71,12 @@ The manual backport process is similar to the :ref:`ansible-core backporting gui
 For convenience, backporting can be implemented automatically using GitHub bots (for example, with the `Patchback app <https://github.com/apps/patchback>`_) and labeling as it is done in `community.general <https://github.com/ansible-collections/community.general>`_ and `community.network <https://github.com/ansible-collections/community.network>`_.
 
 
-Inclusion in Ansible
-----------------------
+.. _including_collection_ansible:
 
-If a collection is not included in Ansible (not shipped with Ansible package), maintainers can submit the collection for inclusion by creating a discussion under `ansible-collections/ansible-inclusion repository <https://github.com/ansible-collections/ansible-inclusion>`_. For more information, see the `repository's README <https://github.com/ansible-collections/ansible-inclusion/blob/main/README.md>`_.
+Including a collection in Ansible
+-----------------------------------
+
+If a collection is not included in Ansible (not shipped with Ansible package), maintainers can submit the collection for inclusion by creating a discussion under `ansible-collections/ansible-inclusion repository <https://github.com/ansible-collections/ansible-inclusion>`_. For more information, see the `repository's README <https://github.com/ansible-collections/ansible-inclusion/blob/main/README.md>`_, and the `Ansible community package collections requirements <https://github.com/ansible-collections/overview/blob/main/collection_requirements.rst>`.
 
 Stepping down as a collection maintainer
 ===========================================

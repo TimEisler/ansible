@@ -32,20 +32,23 @@ ansible-doc --list testns.testcol.fakemodule  --playbook-dir ./ 2>&1 | grep "Inv
 
 
 # test listing diff plugin types from collection
-for ptype in cache inventory lookup vars
+for ptype in cache inventory lookup vars filter
 do
 	# each plugin type adds 1 from collection
 	# FIXME pre=$(ansible-doc -l -t ${ptype}|wc -l)
 	# FIXME post=$(ansible-doc -l -t ${ptype} --playbook-dir ./|wc -l)
 	# FIXME test "$pre" -eq $((post - 1))
-
+	if [ "${ptype}" == "filter" ]; then
+		expected=2
+	else
+		expected=1
+	fi
 	# ensure we ONLY list from the collection
 	justcol=$(ansible-doc -l -t ${ptype} --playbook-dir ./ testns.testcol|wc -l)
-	test "$justcol" -eq 1
+	test "$justcol" -eq "$expected"
 
-	# ensure we get 0 plugins when restricting to collection, but not supplying it
-	justcol=$(ansible-doc -l -t ${ptype} testns.testcol|wc -l)
-	test "$justcol" -eq 0
+	# ensure we get error if passinginvalid collection, much less any plugins
+	ansible-doc -l -t ${ptype} testns.testcol  2>&1 | grep "unable to locate collection"
 
 	# TODO: do we want per namespace?
 	# ensure we get 1 plugins when restricting namespace
@@ -102,4 +105,32 @@ expected_out="$(sed 's/ *"filename": "[^"]*",$//' noop_vars_plugin.output)"
 test "$current_out" == "$expected_out"
 
 # just ensure it runs
-ANSIBLE_LIBRARY='./nolibrary' ansible-doc --metadata-dump --playbook-dir /dev/null
+ANSIBLE_LIBRARY='./nolibrary' ansible-doc --metadata-dump --playbook-dir /dev/null >/dev/null
+
+# create broken role argument spec
+mkdir -p broken-docs/collections/ansible_collections/testns/testcol/roles/testrole/meta
+cat <<EOF > broken-docs/collections/ansible_collections/testns/testcol/roles/testrole/meta/main.yml
+---
+dependencies:
+galaxy_info:
+
+argument_specs:
+    main:
+        short_description: testns.testcol.testrole short description for main entry point
+        description:
+            - Longer description for testns.testcol.testrole main entry point.
+        author: Ansible Core (@ansible)
+        options:
+            opt1:
+                description: opt1 description
+                    broken:
+                type: "str"
+                required: true
+EOF
+
+# ensure that --metadata-dump does not fail when --no-fail-on-errors is supplied
+ANSIBLE_LIBRARY='./nolibrary' ansible-doc --metadata-dump --no-fail-on-errors --playbook-dir broken-docs testns.testcol >/dev/null
+
+# ensure that --metadata-dump does fail when --no-fail-on-errors is not supplied
+output=$(ANSIBLE_LIBRARY='./nolibrary' ansible-doc --metadata-dump --playbook-dir broken-docs testns.testcol 2>&1 | grep -c 'ERROR!' || true)
+test "$output" -eq 1

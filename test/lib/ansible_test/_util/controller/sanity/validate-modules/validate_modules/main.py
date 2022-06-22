@@ -71,7 +71,8 @@ from ansible.module_utils.compat.version import StrictVersion, LooseVersion
 from ansible.module_utils.basic import to_bytes
 from ansible.module_utils.six import PY3, with_metaclass, string_types
 from ansible.plugins.loader import fragment_loader
-from ansible.utils.plugin_docs import REJECTLIST, add_collection_to_versions_and_dates, add_fragments, get_docstring
+from ansible.plugins.list import IGNORE as REJECTLIST
+from ansible.utils.plugin_docs import add_collection_to_versions_and_dates, add_fragments, get_docstring
 from ansible.utils.version import SemanticVersion
 
 from .module_args import AnsibleModuleImportError, AnsibleModuleNotInitialized, get_argument_spec
@@ -294,7 +295,7 @@ class ModuleValidator(Validator):
     REJECTLIST_FILES = frozenset(('.git', '.gitignore', '.travis.yml',
                                   '.gitattributes', '.gitmodules', 'COPYING',
                                   '__init__.py', 'VERSION', 'test-docs.sh'))
-    REJECTLIST = REJECTLIST_FILES.union(REJECTLIST['MODULE'])
+    REJECTLIST = REJECTLIST_FILES.union(REJECTLIST['module'])
 
     PS_DOC_REJECTLIST = frozenset((
         'async_status.ps1',
@@ -411,6 +412,10 @@ class ModuleValidator(Validator):
         try:
             for child in self.ast.body:
                 if not isinstance(child, ast.Assign):
+                    # allow string constant expressions (these are docstrings)
+                    if isinstance(child, ast.Expr) and isinstance(child.value, ast.Constant) and isinstance(child.value.value, str):
+                        continue
+
                     # allowed from __future__ imports
                     if isinstance(child, ast.ImportFrom) and child.module == '__future__':
                         for future_import in child.names:
@@ -436,14 +441,13 @@ class ModuleValidator(Validator):
         base_path = self._get_base_branch_module_path()
 
         command = ['git', 'show', '%s:%s' % (self.base_branch, base_path or self.path)]
-        p = subprocess.Popen(command, stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
-        stdout, stderr = p.communicate()
+        p = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, check=False)
+
         if int(p.returncode) != 0:
             return None
 
         t = tempfile.NamedTemporaryFile(delete=False)
-        t.write(stdout)
+        t.write(p.stdout)
         t.close()
 
         return t.name
@@ -2456,11 +2460,12 @@ class GitCache:
     @staticmethod
     def _git(args):
         cmd = ['git'] + args
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = p.communicate()
+        p = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, check=False)
+
         if p.returncode != 0:
-            raise GitError(stderr, p.returncode)
-        return stdout.decode('utf-8').splitlines()
+            raise GitError(p.stderr, p.returncode)
+
+        return p.stdout.splitlines()
 
 
 class GitError(Exception):

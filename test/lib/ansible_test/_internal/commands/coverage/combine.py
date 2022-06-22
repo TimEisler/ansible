@@ -18,11 +18,11 @@ from ...util import (
     ANSIBLE_TEST_TOOLS_ROOT,
     display,
     ApplicationError,
+    raw_command,
 )
 
 from ...util_common import (
     ResultType,
-    run_command,
     write_json_file,
     write_json_test_results,
 )
@@ -161,8 +161,12 @@ def _command_coverage_combine_python(args, host_state):  # type: (CoverageCombin
 
     for group in sorted(groups):
         arc_data = groups[group]
+        output_file = coverage_file + group + suffix
 
-        updated = coverage.CoverageData()
+        if args.explain:
+            continue
+
+        updated = coverage.CoverageData(output_file)
 
         for filename in arc_data:
             if not path_checker.check_path(filename):
@@ -173,13 +177,11 @@ def _command_coverage_combine_python(args, host_state):  # type: (CoverageCombin
         if args.all:
             updated.add_arcs(dict((source[0], []) for source in sources))
 
-        if not args.explain:
-            output_file = coverage_file + group + suffix
-            updated.write_file(output_file)  # always write files to make sure stale files do not exist
+        updated.write()  # always write files to make sure stale files do not exist
 
-            if updated:
-                # only report files which are non-empty to prevent coverage from reporting errors
-                output_files.append(output_file)
+        if updated:
+            # only report files which are non-empty to prevent coverage from reporting errors
+            output_files.append(output_file)
 
     path_checker.report()
 
@@ -194,7 +196,7 @@ def _command_coverage_combine_powershell(args):  # type: (CoverageCombineConfig)
         cmd = ['pwsh', os.path.join(ANSIBLE_TEST_TOOLS_ROOT, 'coverage_stub.ps1')]
         cmd.extend(source_paths)
 
-        stubs = json.loads(run_command(args, cmd, capture=True, always=True)[0])
+        stubs = json.loads(raw_command(cmd, capture=True)[0])
 
         return dict((d['Path'], dict((line, 0) for line in d['Lines'])) for d in stubs)
 
@@ -240,8 +242,7 @@ def _command_coverage_combine_powershell(args):  # type: (CoverageCombineConfig)
 
         if args.all:
             missing_sources = [source for source, _source_line_count in sources if source not in coverage_data]
-            stubs = _default_stub_value(missing_sources)
-            coverage_data.update(stubs)
+            coverage_data.update(_default_stub_value(missing_sources))
 
         if not args.explain:
             if args.export:

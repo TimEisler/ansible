@@ -177,7 +177,7 @@ def version(prog=None):
     result.append("  ansible python module location = %s" % ':'.join(ansible.__path__))
     result.append("  ansible collection location = %s" % ':'.join(C.COLLECTIONS_PATHS))
     result.append("  executable location = %s" % sys.argv[0])
-    result.append("  python version = %s" % ''.join(sys.version.splitlines()))
+    result.append("  python version = %s (%s)" % (''.join(sys.version.splitlines()), to_native(sys.executable)))
     result.append("  jinja version = %s" % j2_version)
     result.append("  libyaml = %s" % HAS_LIBYAML)
     return "\n".join(result)
@@ -225,7 +225,7 @@ def add_async_options(parser):
 
 def add_basedir_options(parser):
     """Add options for commands which can set a playbook basedir"""
-    parser.add_argument('--playbook-dir', default=C.config.get_config_value('PLAYBOOK_DIR'), dest='basedir', action='store',
+    parser.add_argument('--playbook-dir', default=C.PLAYBOOK_DIR, dest='basedir', action='store',
                         help="Since this tool does not use playbooks, use this as a substitute playbook directory. "
                              "This sets the relative path for many features including roles/ group_vars/ etc.",
                         type=unfrack_path())

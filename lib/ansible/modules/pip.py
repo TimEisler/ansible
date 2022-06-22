@@ -159,12 +159,11 @@ EXAMPLES = '''
       - bottle>0.10,<0.20,!=0.11
 
 - name: Install python package using a proxy
-  # Pip doesn't use the standard environment variables, please use the CAPITALIZED ones below
   ansible.builtin.pip:
     name: six
   environment:
-    HTTP_PROXY: '127.0.0.1:8080'
-    HTTPS_PROXY: '127.0.0.1:8080'
+    http_proxy: 'http://127.0.0.1:8080'
+    https_proxy: 'https://127.0.0.1:8080'
 
 # You do not have to supply '-e' option in extra_args
 - name: Install MyApp using one of the remote protocols (bzr+,hg+,git+,svn+)
@@ -456,15 +455,15 @@ def _get_pip(module, env=None, executable=None):
 def _have_pip_module():  # type: () -> bool
     """Return True if the `pip` module can be found using the current Python interpreter, otherwise return False."""
     try:
-        import importlib
+        from importlib.util import find_spec
     except ImportError:
-        importlib = None  # type: types.ModuleType | None  # type: ignore[no-redef]
+        find_spec = None  # type: ignore[assignment] # type: ignore[no-redef]
 
-    if importlib:
+    if find_spec:
         # noinspection PyBroadException
         try:
             # noinspection PyUnresolvedReferences
-            found = bool(importlib.util.find_spec('pip'))
+            found = bool(find_spec('pip'))
         except Exception:
             found = False
     else:
@@ -642,7 +641,7 @@ def main():
 
     module = AnsibleModule(
         argument_spec=dict(
-            state=dict(type='str', default='present', choices=state_map.keys()),
+            state=dict(type='str', default='present', choices=list(state_map.keys())),
             name=dict(type='list', elements='str'),
             version=dict(type='str'),
             requirements=dict(type='str'),

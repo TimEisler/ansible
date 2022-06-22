@@ -126,6 +126,7 @@ class PluginLoadContext(object):
         self.deprecation_warnings = []
         self.resolved = False
         self._resolved_fqcn = None
+        self.action_plugin = None
 
     @property
     def resolved_fqcn(self):
@@ -166,13 +167,14 @@ class PluginLoadContext(object):
         self.deprecation_warnings.append(warning_text)
         return self
 
-    def resolve(self, resolved_name, resolved_path, resolved_collection, exit_reason):
+    def resolve(self, resolved_name, resolved_path, resolved_collection, exit_reason, action_plugin):
         self.pending_redirect = None
         self.plugin_resolved_name = resolved_name
         self.plugin_resolved_path = resolved_path
         self.plugin_resolved_collection = resolved_collection
         self.exit_reason = exit_reason
         self.resolved = True
+        self.action_plugin = action_plugin
         return self
 
     def redirect(self, redirect_name):
@@ -231,8 +233,12 @@ class PluginLoader:
 
         self._searched_paths = set()
 
+    @property
+    def type(self):
+        return AnsibleCollectionRef.legacy_plugin_dir_to_plugin_type(self.subdir)
+
     def __repr__(self):
-        return 'PluginLoader(type={0})'.format(AnsibleCollectionRef.legacy_plugin_dir_to_plugin_type(self.subdir))
+        return 'PluginLoader(type={0})'.format(self.type)
 
     def _clear_caches(self):
 
@@ -391,7 +397,7 @@ class PluginLoader:
             type_name = get_plugin_class(self.class_name)
 
             # if type name != 'module_doc_fragment':
-            if type_name in C.CONFIGURABLE_PLUGINS:
+            if type_name in C.CONFIGURABLE_PLUGINS and not C.config.get_configuration_definition(type_name, name):
                 dstring = AnsibleLoader(getattr(module, 'DOCUMENTATION', ''), file_name=path).get_single_data()
                 if dstring:
                     add_fragments(dstring, path, fragment_loader=fragment_loader, is_module=(type_name == 'module'))
@@ -459,6 +465,7 @@ class PluginLoader:
         # check collection metadata to see if any special handling is required for this plugin
         routing_metadata = self._query_collection_routing_meta(acr, plugin_type, extension=extension)
 
+        action_plugin = None
         # TODO: factor this into a wrapper method
         if routing_metadata:
             deprecation = routing_metadata.get('deprecation', None)
@@ -497,6 +504,9 @@ class PluginLoader:
                 return plugin_load_context.redirect(redirect)
                 # TODO: non-FQCN case, do we support `.` prefix for current collection, assume it with no dots, require it for subdirs in current, or ?
 
+            if self.type == 'modules':
+                action_plugin = routing_metadata.get('action_plugin')
+
         n_resource = to_native(acr.resource, errors='strict')
         # we want this before the extension is added
         full_name = '{0}.{1}'.format(acr.n_python_package_name, n_resource)
@@ -519,7 +529,7 @@ class PluginLoader:
         # FIXME: and is file or file link or ...
         if os.path.exists(n_resource_path):
             return plugin_load_context.resolve(
-                full_name, to_text(n_resource_path), acr.collection, 'found exact match for {0} in {1}'.format(full_name, acr.collection))
+                full_name, to_text(n_resource_path), acr.collection, 'found exact match for {0} in {1}'.format(full_name, acr.collection), action_plugin)
 
         if extension:
             # the request was extension-specific, don't try for an extensionless match
@@ -533,12 +543,15 @@ class PluginLoader:
         if not found_files:
             return plugin_load_context.nope('failed fuzzy extension match for {0} in {1}'.format(full_name, acr.collection))
 
+        found_files = sorted(found_files)  # sort to ensure deterministic results, with the shortest match first
+
         if len(found_files) > 1:
             # TODO: warn?
             pass
 
         return plugin_load_context.resolve(
-            full_name, to_text(found_files[0]), acr.collection, 'found fuzzy extension match for {0} in {1}'.format(full_name, acr.collection))
+            full_name, to_text(found_files[0]), acr.collection,
+            'found fuzzy extension match for {0} in {1}'.format(full_name, acr.collection), action_plugin)
 
     def find_plugin(self, name, mod_type='', ignore_deprecated=False, check_aliases=False, collection_list=None):
         ''' Find a plugin named name '''
@@ -819,10 +832,12 @@ class PluginLoader:
 
         if path not in self._module_cache:
             self._module_cache[path] = self._load_module_source(name, path)
-            self._load_config_defs(name, self._module_cache[path], path)
             found_in_cache = False
 
+        self._load_config_defs(name, self._module_cache[path], path)
+
         obj = getattr(self._module_cache[path], self.class_name)
+
         if self.base_class:
             # The import path is hardcoded and should be the right place,
             # so we are not expecting an ImportError.
@@ -949,15 +964,18 @@ class PluginLoader:
                     else:
                         full_name = basename
                     module = self._load_module_source(full_name, path)
-                    self._load_config_defs(basename, module, path)
                 except Exception as e:
                     display.warning("Skipping plugin (%s) as it seems to be invalid: %s" % (path, to_text(e)))
                     continue
                 self._module_cache[path] = module
                 found_in_cache = False
+            else:
+                module = self._module_cache[path]
+
+            self._load_config_defs(basename, module, path)
 
             try:
-                obj = getattr(self._module_cache[path], self.class_name)
+                obj = getattr(module, self.class_name)
             except AttributeError as e:
                 display.warning("Skipping plugin (%s) as it seems to be invalid: %s" % (path, to_text(e)))
                 continue
@@ -995,13 +1013,11 @@ class Jinja2Loader(PluginLoader):
 
     We can't use the base class version because of file == plugin assumptions and dedupe logic
     """
-    def find_plugin(self, name, collection_list=None):
+    def find_plugin(self, name, mod_type='', ignore_deprecated=False, check_aliases=False, collection_list=None):
+        ''' this is really 'find plugin file' '''
 
-        if '.' in name:  # NOTE: this is wrong way, use: AnsibleCollectionRef.is_valid_fqcr(name) or collection_list
-            return super(Jinja2Loader, self).find_plugin(name, collection_list=collection_list)
-
-        # Nothing is currently using this method
-        raise AnsibleError('No code should call "find_plugin" for Jinja2Loaders (Not implemented)')
+        return super(Jinja2Loader, self).find_plugin(name, mod_type=mod_type, ignore_deprecated=ignore_deprecated, check_aliases=check_aliases,
+                                                     collection_list=collection_list)
 
     def get(self, name, *args, **kwargs):
 
@@ -1009,7 +1025,7 @@ class Jinja2Loader(PluginLoader):
             return super(Jinja2Loader, self).get(name, *args, **kwargs)
 
         # Nothing is currently using this method
-        raise AnsibleError('No code should call "get" for Jinja2Loaders (Not implemented)')
+        raise AnsibleError('No code should call "get" for Jinja2Loaders (Not implemented) for non collection use')
 
     def all(self, *args, **kwargs):
         """
@@ -1145,7 +1161,7 @@ def _configure_collection_loader():
         warnings.warn('AnsibleCollectionFinder has already been configured')
         return
 
-    finder = _AnsibleCollectionFinder(C.config.get_config_value('COLLECTIONS_PATHS'), C.config.get_config_value('COLLECTIONS_SCAN_SYS_PATH'))
+    finder = _AnsibleCollectionFinder(C.COLLECTIONS_PATHS, C.COLLECTIONS_SCAN_SYS_PATH)
     finder._install()
 
     # this should succeed now

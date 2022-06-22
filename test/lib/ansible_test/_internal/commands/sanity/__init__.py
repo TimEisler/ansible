@@ -179,7 +179,7 @@ def command_sanity(args):  # type: (SanityConfig) -> None
 
     for test in tests:
         if args.list_tests:
-            display.info(test.name)
+            print(test.name)  # display goes to stderr, this should be on stdout
             continue
 
         for version in SUPPORTED_PYTHON_VERSIONS:
@@ -847,6 +847,7 @@ class SanityCodeSmellTest(SanitySingleVersion):
             self.text = self.config.get('text')  # type: t.Optional[bool]
             self.ignore_self = self.config.get('ignore_self')  # type: bool
             self.minimum_python_version = self.config.get('minimum_python_version')  # type: t.Optional[str]
+            self.maximum_python_version = self.config.get('maximum_python_version')  # type: t.Optional[str]
 
             self.__all_targets = self.config.get('all_targets')  # type: bool
             self.__no_targets = self.config.get('no_targets')  # type: bool
@@ -861,6 +862,7 @@ class SanityCodeSmellTest(SanitySingleVersion):
             self.text = None  # type: t.Optional[bool]
             self.ignore_self = False
             self.minimum_python_version = None  # type: t.Optional[str]
+            self.maximum_python_version = None  # type: t.Optional[str]
 
             self.__all_targets = False
             self.__no_targets = True
@@ -918,6 +920,9 @@ class SanityCodeSmellTest(SanitySingleVersion):
         if self.minimum_python_version:
             versions = tuple(version for version in versions if str_to_version(version) >= str_to_version(self.minimum_python_version))
 
+        if self.maximum_python_version:
+            versions = tuple(version for version in versions if str_to_version(version) <= str_to_version(self.maximum_python_version))
+
         return versions
 
     def filter_targets(self, targets):  # type: (t.List[TestTarget]) -> t.List[TestTarget]
@@ -952,6 +957,7 @@ class SanityCodeSmellTest(SanitySingleVersion):
         cmd = [python.path, self.path]
 
         env = ansible_environment(args, color=False)
+        env.update(PYTHONUTF8='1')  # force all code-smell sanity tests to run with Python UTF-8 Mode enabled
 
         pattern = None
         data = None
@@ -1004,7 +1010,7 @@ class SanityCodeSmellTest(SanitySingleVersion):
                 return SanityFailure(self.name, messages=messages)
 
         if stderr or status:
-            summary = u'%s' % SubprocessError(cmd=cmd, status=status, stderr=stderr, stdout=stdout)
+            summary = '%s' % SubprocessError(cmd=cmd, status=status, stderr=stderr, stdout=stdout)
             return SanityFailure(self.name, summary=summary)
 
         messages = settings.process_errors([], paths)

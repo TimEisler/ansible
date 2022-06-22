@@ -67,16 +67,6 @@ options:
     type: bool
     default: no
     version_added: '2.1'
-  sha256sum:
-    description:
-      - If a SHA-256 checksum is passed to this parameter, the digest of the
-        destination file will be calculated after it is downloaded to ensure
-        its integrity and verify that the transfer completed successfully.
-        This option is deprecated and will be removed in version 2.14. Use
-        option C(checksum) instead.
-    default: ''
-    type: str
-    version_added: "1.3"
   checksum:
     description:
       - 'If a checksum is passed to this parameter, the digest of the
@@ -462,7 +452,6 @@ def main():
         url=dict(type='str', required=True),
         dest=dict(type='path', required=True),
         backup=dict(type='bool', default=False),
-        sha256sum=dict(type='str', default=''),
         checksum=dict(type='str', default=''),
         timeout=dict(type='int', default=10),
         headers=dict(type='dict'),
@@ -475,18 +464,12 @@ def main():
         argument_spec=argument_spec,
         add_file_common_args=True,
         supports_check_mode=True,
-        mutually_exclusive=[['checksum', 'sha256sum']],
     )
-
-    if module.params.get('sha256sum'):
-        module.deprecate('The parameter "sha256sum" has been deprecated and will be removed, use "checksum" instead',
-                         version='2.14', collection_name='ansible.builtin')
 
     url = module.params['url']
     dest = module.params['dest']
     backup = module.params['backup']
     force = module.params['force']
-    sha256sum = module.params['sha256sum']
     checksum = module.params['checksum']
     use_proxy = module.params['use_proxy']
     timeout = module.params['timeout']
@@ -506,10 +489,6 @@ def main():
     dest_is_dir = os.path.isdir(dest)
     last_mod_time = None
 
-    # workaround for usage of deprecated sha256sum parameter
-    if sha256sum:
-        checksum = 'sha256:%s' % (sha256sum)
-
     # checksum specified, parse for algorithm and checksum
     if checksum:
         try:
@@ -526,18 +505,24 @@ def main():
                 lines = [line.rstrip('\n') for line in f]
             os.remove(checksum_tmpsrc)
             checksum_map = []
-            for line in lines:
-                # Split by one whitespace to keep the leading type char ' ' (whitespace) for text and '*' for binary
-                parts = line.split(" ", 1)
-                if len(parts) == 2:
-                    # Remove the leading type char, we expect
-                    if parts[1].startswith((" ", "*",)):
-                        parts[1] = parts[1][1:]
-
-                    # Append checksum and path without potential leading './'
-                    checksum_map.append((parts[0], parts[1].lstrip("./")))
-
             filename = url_filename(url)
+            if len(lines) == 1 and len(lines[0].split()) == 1:
+                # Only a single line with a single string
+                # treat it as a checksum only file
+                checksum_map.append((lines[0], filename))
+            else:
+                # The assumption here is the file is in the format of
+                # checksum filename
+                for line in lines:
+                    # Split by one whitespace to keep the leading type char ' ' (whitespace) for text and '*' for binary
+                    parts = line.split(" ", 1)
+                    if len(parts) == 2:
+                        # Remove the leading type char, we expect
+                        if parts[1].startswith((" ", "*",)):
+                            parts[1] = parts[1][1:]
+
+                        # Append checksum and path without potential leading './'
+                        checksum_map.append((parts[0], parts[1].lstrip("./")))
 
             # Look through each line in the checksum file for a hash corresponding to
             # the filename in the url, returning the first hash that is found.

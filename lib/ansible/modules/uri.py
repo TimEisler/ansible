@@ -149,6 +149,7 @@ options:
     description:
       - Path to file to be submitted to the remote server.
       - Cannot be used with I(body).
+      - Should be used with I(force_basic_auth) to ensure success when the remote end sends a 401.
     type: path
     version_added: '2.7'
   remote_src:
@@ -592,6 +593,7 @@ def uri(module, url, dest, body, body_format, method, headers, socket_timeout, c
     resp, info = fetch_url(module, url, data=data, headers=headers,
                            method=method, timeout=socket_timeout, unix_socket=module.params['unix_socket'],
                            ca_path=ca_path, unredirected_headers=unredirected_headers,
+                           use_proxy=module.params['use_proxy'],
                            **kwargs)
 
     if src:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import dataclasses
 import os
 import re
+import sys
 import typing as t
 
 from . import (
@@ -60,10 +61,17 @@ class MypyTest(SanityMultipleVersion):
     """Sanity test which executes mypy."""
     ansible_only = True
 
+    vendored_paths = (
+        'lib/ansible/module_utils/six/__init__.py',
+        'lib/ansible/module_utils/distro/_distro.py',
+        'lib/ansible/module_utils/compat/_selectors2.py',
+    )
+
     def filter_targets(self, targets):  # type: (t.List[TestTarget]) -> t.List[TestTarget]
         """Return the given list of test targets, filtered to include only those relevant for the test."""
-        return [target for target in targets if os.path.splitext(target.path)[1] == '.py' and (
-                target.path.startswith('lib/ansible/') or target.path.startswith('test/lib/ansible_test/_internal/'))]
+        return [target for target in targets if os.path.splitext(target.path)[1] == '.py' and target.path not in self.vendored_paths and (
+                target.path.startswith('lib/ansible/') or target.path.startswith('test/lib/ansible_test/_internal/')
+                or target.path.startswith('test/lib/ansible_test/_util/target/sanity/import/'))]
 
     @property
     def error_code(self):  # type: () -> t.Optional[str]
@@ -76,6 +84,10 @@ class MypyTest(SanityMultipleVersion):
         return True
 
     def test(self, args, targets, python):  # type: (SanityConfig, SanityTargets, PythonConfig) -> TestResult
+        if sys.version_info >= (3, 11):
+            display.warning(f'Skipping sanity test "{self.name}" which can test Python {args.controller_python.version}, but cannot run under that version.')
+            return SanitySkipped(self.name, python.version)
+
         settings = self.load_processor(args, python.version)
 
         paths = [target.path for target in targets.include]
@@ -89,10 +101,22 @@ class MypyTest(SanityMultipleVersion):
             display.warning(f'Skipping sanity test "{self.name}" due to missing virtual environment support on Python {args.controller_python.version}.')
             return SanitySkipped(self.name, python.version)
 
+        # Temporary hack to make Python 3.8 a remote-only Python version since we'll be dropping controller support for it soon.
+        # This avoids having to change annotations or add ignores for issues that are specific to that version.
+
+        change_version = '3.8'
+
+        if change_version not in CONTROLLER_PYTHON_VERSIONS or change_version in REMOTE_ONLY_PYTHON_VERSIONS:
+            raise Exception(f'Remove this hack now that Python {change_version} is not supported by the controller.')
+
+        controller_python_versions = tuple(version for version in CONTROLLER_PYTHON_VERSIONS if version != change_version)
+        remote_only_python_versions = REMOTE_ONLY_PYTHON_VERSIONS + (change_version,)
+
         contexts = (
-            MyPyContext('ansible-test', ['test/lib/ansible_test/_internal/'], CONTROLLER_PYTHON_VERSIONS),
-            MyPyContext('ansible-core', ['lib/ansible/'], CONTROLLER_PYTHON_VERSIONS),
-            MyPyContext('modules', ['lib/ansible/modules/', 'lib/ansible/module_utils/'], REMOTE_ONLY_PYTHON_VERSIONS),
+            MyPyContext('ansible-test', ['test/lib/ansible_test/_util/target/sanity/import/'], controller_python_versions),
+            MyPyContext('ansible-test', ['test/lib/ansible_test/_internal/'], controller_python_versions),
+            MyPyContext('ansible-core', ['lib/ansible/'], controller_python_versions),
+            MyPyContext('modules', ['lib/ansible/modules/', 'lib/ansible/module_utils/'], remote_only_python_versions),
         )
 
         unfiltered_messages = []  # type: t.List[SanityMessage]
@@ -171,6 +195,7 @@ class MypyTest(SanityMultipleVersion):
         display.info(f'Checking context "{context.name}"', verbosity=1)
 
         env = ansible_environment(args, color=False)
+        env['MYPYPATH'] = env['PYTHONPATH']
 
         # The --no-site-packages option should not be used, as it will prevent loading of type stubs from the sanity test virtual environment.
 

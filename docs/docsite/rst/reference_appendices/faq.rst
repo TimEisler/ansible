@@ -234,6 +234,22 @@ need to install them into the virtualenv. There are two methods:
       $ cp -v /usr/lib64/python3.*/site-packages/*selinux*.so ./py3-ansible/lib64/python3.*/site-packages/
 
 
+Running on macOS
+----------------
+
+When executing Ansible on a system with macOS as a controller machine one might encounter the following error:
+
+  .. error::
+        +[__NSCFConstantString initialize] may have been in progress in another thread when fork() was called. We cannot safely call it or ignore it in the fork() child process. Crashing instead. Set a breakpoint on objc_initializeAfterForkError to debug.
+        ERROR! A worker was found in a dead state
+
+In general the recommended workaround is to set the following environment variable in your shell:
+
+  .. code-block:: shell
+
+        $ export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+
+
 Running on BSD
 --------------
 
@@ -794,6 +810,31 @@ and backups, which most file based modules also support:
           file:
              path: "{{ updated['backup_file'] }}"
              state: absent
+
+.. _jinja2_faqs:
+
+Why does the ``regex_search`` filter return `None` instead of an empty string?
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Until the jinja2 2.10 release, Jinja was only able to return strings, but Ansible needed Python objects in some cases. Ansible uses ``safe_eval`` and  only sends strings that look like certain types of Python objects through this function. With ``regex_search`` that does not find a match, the result (``None``) is converted to the string "None" which is not useful in non-native jinja2.
+
+The following example of a single templating action shows this behavior:
+
+.. code-block:: Jinja
+
+  {{ 'ansible' | regex_search('foobar') }}
+
+This example does not result in a Python ``None``, so Ansible historically converted it to "" (empty string).
+
+The native jinja2 functionality actually allows us to return full Python objects, that are always represented as Python objects everywhere, and as such the result of a single templating action with ``regex_search`` can result in the Python ``None``.
+
+.. note::
+
+  Native jinja2 functionality is not needed when ``regex_search`` is used as an intermediate result that is then compared to the jinja2 ``none`` test.
+
+  .. code-block:: Jinja
+
+     {{ 'ansible' | regex_search('foobar') is none }}
 
 
 .. _docs_contributions:

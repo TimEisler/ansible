@@ -70,7 +70,9 @@ For community collections included in the Ansible PyPI package, docs.ansible.com
      toctree:
        - scenario_guide
 
-The index page of the documentation for your collection displays the title you define in ``docs/docsite/extra-docs.yml`` with a link to your extra documentation. For an example, see the `community.docker collection repo <https://github.com/ansible-collections/community.docker/tree/main/docs/docsite>`_ and the `community.docker collection documentation <https://docs.ansible.com/ansible/latest/collections/community/docker/index.html>`_. 
+The index page of the documentation for your collection displays the title you define in ``docs/docsite/extra-docs.yml`` with a link to your extra documentation. For an example, see the `community.docker collection repo <https://github.com/ansible-collections/community.docker/tree/main/docs/docsite>`_ and the `community.docker collection documentation <https://docs.ansible.com/ansible/latest/collections/community/docker/index.html>`_.
+
+You can add extra links to your collection index page and plugin pages with the ``docs/docsite/links.yml`` file. This populates the links under `Description and Communications <https://docs.ansible.com/ansible/devel/collections/community/dns/index.html#plugins-in-community-dns>`_ headings as well as links at the end of the individual plugin pages. See the `collection_template links.yml file <https://github.com/ansible-collections/collection_template/blob/main/docs/docsite/links.yml>`_ for a complete description of the structure and use of this file to create links.
 
 Plugin and module documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -183,6 +185,13 @@ This will keep the playbook in 'collection context', as if you had added ``colle
 
 You can have most of the subdirectories you would expect, such ``files/``, ``vars/`` or  ``templates/`` but no ``roles/`` since those are handled already in the collection.
 
+Also, playbooks within a collection follow the same guidelines as any playbooks except for these few adjustments:
+
+ - Directory: It must be in ``/playbooks directory``.
+ - Hosts: The host should be defined as a variable so the users of a playbook do not mistakenly run the plays against their entire inventory (if the host is set to all). For example - ``hosts: '{{target|default("all")}}'``.
+
+To run the plays, users can now use such commands as ``ansible-playbook --e 'targets=webservers'`` or ``ansible-playbook --limit webservers``. Either way, the collection owner should document their playbooks and how to use them in the ``/docs`` folder or ``README`` file.
+
 .. _developing_collections_tests_directory:
 
 tests directory
@@ -196,8 +205,8 @@ When reading the :ref:`developing_testing` documentation, there will be content 
 
 .. _meta_runtime_yml:
 
-meta directory
---------------
+meta directory and runtime.yml
+------------------------------
 
 A collection can store some additional metadata in a ``runtime.yml`` file in the collection's ``meta`` directory. The ``runtime.yml`` file supports the top level keys:
 

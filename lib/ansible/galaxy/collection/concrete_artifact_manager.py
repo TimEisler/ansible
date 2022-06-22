@@ -30,6 +30,7 @@ from ansible.galaxy import get_collections_galaxy_meta_info
 from ansible.galaxy.dependency_resolution.dataclasses import _GALAXY_YAML
 from ansible.galaxy.user_agent import user_agent
 from ansible.module_utils._text import to_bytes, to_native, to_text
+from ansible.module_utils.common.process import get_bin_path
 from ansible.module_utils.common.yaml import yaml_load
 from ansible.module_utils.six import raise_from
 from ansible.module_utils.urls import open_url
@@ -56,9 +57,8 @@ class ConcreteArtifactsManager:
         * caching all of above
         * retrieving the metadata out of the downloaded artifacts
     """
-
-    def __init__(self, b_working_directory, validate_certs=True, keyring=None, timeout=60):
-        # type: (bytes, bool, str, int) -> None
+    def __init__(self, b_working_directory, validate_certs=True, keyring=None, timeout=60, required_signature_count=None, ignore_signature_errors=None):
+        # type: (bytes, bool, str, int, str, list[str]) -> None
         """Initialize ConcreteArtifactsManager caches and costraints."""
         self._validate_certs = validate_certs  # type: bool
         self._artifact_cache = {}  # type: dict[bytes, bytes]
@@ -70,13 +70,25 @@ class ConcreteArtifactsManager:
         self._supplemental_signature_cache = {}  # type: dict[str, str]
         self._keyring = keyring  # type: str
         self.timeout = timeout  # type: int
+        self._required_signature_count = required_signature_count  # type: str
+        self._ignore_signature_errors = ignore_signature_errors  # type: list[str]
 
     @property
     def keyring(self):
         return self._keyring
 
+    @property
+    def required_successful_signature_count(self):
+        return self._required_signature_count
+
+    @property
+    def ignore_signature_errors(self):
+        if self._ignore_signature_errors is None:
+            return []
+        return self._ignore_signature_errors
+
     def get_galaxy_artifact_source_info(self, collection):
-        # type: (Candidate) -> dict[str, str | list[dict[str, str]]]
+        # type: (Candidate) -> dict[str, t.Union[str, list[dict[str, str]]]]
         server = collection.src.api_server
 
         try:
@@ -100,7 +112,7 @@ class ConcreteArtifactsManager:
         }
 
     def get_galaxy_artifact_path(self, collection):
-        # type: (Candidate | Requirement) -> bytes
+        # type: (t.Union[Candidate, Requirement]) -> bytes
         """Given a Galaxy-stored collection, return a cached path.
 
         If it's not yet on disk, this method downloads the artifact first.
@@ -160,7 +172,7 @@ class ConcreteArtifactsManager:
         return b_artifact_path
 
     def get_artifact_path(self, collection):
-        # type: (Candidate | Requirement) -> bytes
+        # type: (t.Union[Candidate, Requirement]) -> bytes
         """Given a concrete collection pointer, return a cached path.
 
         If it's not yet on disk, this method downloads the artifact first.
@@ -225,15 +237,15 @@ class ConcreteArtifactsManager:
         return b_artifact_path
 
     def _get_direct_collection_namespace(self, collection):
-        # type: (Candidate) -> str | None
+        # type: (Candidate) -> t.Optional[str]
         return self.get_direct_collection_meta(collection)['namespace']  # type: ignore[return-value]
 
     def _get_direct_collection_name(self, collection):
-        # type: (Candidate) -> str | None
+        # type: (Candidate) -> t.Optional[str]
         return self.get_direct_collection_meta(collection)['name']  # type: ignore[return-value]
 
     def get_direct_collection_fqcn(self, collection):
-        # type: (Candidate) -> str | None
+        # type: (Candidate) -> t.Optional[str]
         """Extract FQCN from the given on-disk collection artifact.
 
         If the collection is virtual, ``None`` is returned instead
@@ -249,17 +261,20 @@ class ConcreteArtifactsManager:
         ))
 
     def get_direct_collection_version(self, collection):
-        # type: (Candidate | Requirement) -> str
+        # type: (t.Union[Candidate, Requirement]) -> str
         """Extract version from the given on-disk collection artifact."""
         return self.get_direct_collection_meta(collection)['version']  # type: ignore[return-value]
 
     def get_direct_collection_dependencies(self, collection):
-        # type: (Candidate | Requirement) -> dict[str, str]
+        # type: (t.Union[Candidate, Requirement]) -> dict[str, str]
         """Extract deps from the given on-disk collection artifact."""
-        return self.get_direct_collection_meta(collection)['dependencies']  # type: ignore[return-value]
+        collection_dependencies = self.get_direct_collection_meta(collection)['dependencies']
+        if collection_dependencies is None:
+            collection_dependencies = {}
+        return collection_dependencies  # type: ignore[return-value]
 
     def get_direct_collection_meta(self, collection):
-        # type: (Candidate | Requirement) -> dict[str, str | dict[str, str] | list[str] | None]
+        # type: (t.Union[Candidate, Requirement]) -> dict[str, t.Union[str, dict[str, str], list[str], None]]
         """Extract meta from the given on-disk collection artifact."""
         try:  # FIXME: use unique collection identifier as a cache key?
             return self._artifact_meta_cache[collection.src]
@@ -321,6 +336,8 @@ class ConcreteArtifactsManager:
             temp_dir_base,  # type: str
             validate_certs=True,  # type: bool
             keyring=None,  # type: str
+            required_signature_count=None,  # type: str
+            ignore_signature_errors=None,  # type: list[str]
     ):  # type: (...) -> t.Iterator[ConcreteArtifactsManager]
         """Custom ConcreteArtifactsManager constructor with temp dir.
 
@@ -335,7 +352,13 @@ class ConcreteArtifactsManager:
         )
         b_temp_path = to_bytes(temp_path, errors='surrogate_or_strict')
         try:
-            yield cls(b_temp_path, validate_certs, keyring=keyring)
+            yield cls(
+                b_temp_path,
+                validate_certs,
+                keyring=keyring,
+                required_signature_count=required_signature_count,
+                ignore_signature_errors=ignore_signature_errors
+            )
         finally:
             rmtree(b_temp_path)
 
@@ -374,11 +397,19 @@ def _extract_collection_from_git(repo_url, coll_ver, b_path):
         prefix=to_bytes(name, errors='surrogate_or_strict'),
     )  # type: bytes
 
+    try:
+        git_executable = get_bin_path('git')
+    except ValueError as err:
+        raise AnsibleError(
+            "Could not find git executable to extract the collection from the Git repository `{repo_url!s}`.".
+            format(repo_url=to_native(git_url))
+        ) from err
+
     # Perform a shallow clone if simply cloning HEAD
     if version == 'HEAD':
-        git_clone_cmd = 'git', 'clone', '--depth=1', git_url, to_text(b_checkout_path)
+        git_clone_cmd = git_executable, 'clone', '--depth=1', git_url, to_text(b_checkout_path)
     else:
-        git_clone_cmd = 'git', 'clone', git_url, to_text(b_checkout_path)
+        git_clone_cmd = git_executable, 'clone', git_url, to_text(b_checkout_path)
     # FIXME: '--branch', version
 
     try:
@@ -392,7 +423,7 @@ def _extract_collection_from_git(repo_url, coll_ver, b_path):
             proc_err,
         )
 
-    git_switch_cmd = 'git', 'checkout', to_text(version)
+    git_switch_cmd = git_executable, 'checkout', to_text(version)
     try:
         subprocess.check_call(git_switch_cmd, cwd=b_checkout_path)
     except subprocess.CalledProcessError as proc_err:
@@ -416,7 +447,7 @@ def _extract_collection_from_git(repo_url, coll_ver, b_path):
 
 # FIXME: use random subdirs while preserving the file names
 def _download_file(url, b_path, expected_hash, validate_certs, token=None, timeout=60):
-    # type: (str, bytes, str | None, bool, GalaxyToken, int) -> bytes
+    # type: (str, bytes, t.Optional[str], bool, GalaxyToken, int) -> bytes
     # ^ NOTE: used in download and verify_collections ^
     b_tarball_name = to_bytes(
         url.rsplit('/', 1)[1], errors='surrogate_or_strict',
@@ -472,14 +503,14 @@ def _consume_file(read_from, write_to=None):
 
 
 def _normalize_galaxy_yml_manifest(
-        galaxy_yml,  # type: dict[str, str | list[str] | dict[str, str] | None]
+        galaxy_yml,  # type: dict[str, t.Union[str, list[str], dict[str, str], None]]
         b_galaxy_yml_path,  # type: bytes
 ):
-    # type: (...) -> dict[str, str | list[str] | dict[str, str] | None]
+    # type: (...) -> dict[str, t.Union[str, list[str], dict[str, str], None]]
     galaxy_yml_schema = (
         get_collections_galaxy_meta_info()
     )  # type: list[dict[str, t.Any]]  # FIXME: <--
-    # FIXME: 👆maybe precise type: list[dict[str, bool | str | list[str]]]
+    # FIXME: 👆maybe precise type: list[dict[str, t.Union[bool, str, list[str]]]]
 
     mandatory_keys = set()
     string_keys = set()  # type: set[str]
@@ -539,7 +570,7 @@ def _normalize_galaxy_yml_manifest(
 
 def _get_meta_from_dir(
         b_path,  # type: bytes
-):  # type: (...) -> dict[str, str | list[str] | dict[str, str] | None]
+):  # type: (...) -> dict[str, t.Union[str, list[str], dict[str, str], None]]
     try:
         return _get_meta_from_installed_dir(b_path)
     except LookupError:
@@ -548,7 +579,7 @@ def _get_meta_from_dir(
 
 def _get_meta_from_src_dir(
         b_path,  # type: bytes
-):  # type: (...) -> dict[str, str | list[str] | dict[str, str] | None]
+):  # type: (...) -> dict[str, t.Union[str, list[str], dict[str, str], None]]
     galaxy_yml = os.path.join(b_path, _GALAXY_YAML)
     if not os.path.isfile(galaxy_yml):
         raise LookupError(
@@ -610,7 +641,7 @@ def _get_json_from_installed_dir(
 
 def _get_meta_from_installed_dir(
         b_path,  # type: bytes
-):  # type: (...) -> dict[str, str | list[str] | dict[str, str] | None]
+):  # type: (...) -> dict[str, t.Union[str, list[str], dict[str, str], None]]
     manifest = _get_json_from_installed_dir(b_path, MANIFEST_FILENAME)
     collection_info = manifest['collection_info']
 
@@ -631,7 +662,7 @@ def _get_meta_from_installed_dir(
 
 def _get_meta_from_tar(
         b_path,  # type: bytes
-):  # type: (...) -> dict[str, str | list[str] | dict[str, str] | None]
+):  # type: (...) -> dict[str, t.Union[str, list[str], dict[str, str], None]]
     if not tarfile.is_tarfile(b_path):
         raise AnsibleError(
             "Collection artifact at '{path!s}' is not a valid tar file.".
@@ -679,7 +710,7 @@ def _tarfile_extract(
         tar,  # type: tarfile.TarFile
         member,  # type: tarfile.TarInfo
 ):
-    # type: (...) -> t.Iterator[tuple[tarfile.TarInfo, t.IO[bytes] | None]]
+    # type: (...) -> t.Iterator[tuple[tarfile.TarInfo, t.Optional[t.IO[bytes]]]]
     tar_obj = tar.extractfile(member)
     try:
         yield member, tar_obj

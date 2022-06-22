@@ -7,6 +7,7 @@ include docs/docsite/rst/collections/all_plugins.rst
 exclude docs/docsite/rst_warnings
 exclude docs/docsite/rst/conf.py
 exclude docs/docsite/rst/index.rst
+exclude docs/docsite/rst/dev_guide/index.rst
 exclude docs/docsite/rst/dev_guide/testing/sanity/bin-symlinks.rst
 exclude docs/docsite/rst/dev_guide/testing/sanity/botmeta.rst
 exclude docs/docsite/rst/dev_guide/testing/sanity/integration-aliases.rst
@@ -24,6 +25,9 @@ recursive-include lib/ansible/module_utils/powershell *.psm1
 recursive-include lib/ansible/modules/windows *.ps1
 recursive-include lib/ansible/galaxy/data *.yml *.j2 README.md ansible.cfg inventory .git_keep
 recursive-include lib/ansible/config *.yml
+recursive-include lib/ansible/modules *.yml
+recursive-include lib/ansible/plugins/test *.yml
+recursive-include lib/ansible/plugins/filter *.yml
 recursive-include licenses *.txt
 recursive-include packaging *
 recursive-include test/ansible_test *.py Makefile

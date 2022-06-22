@@ -280,7 +280,7 @@ To avoid such behavior and generate long lines, use the ``width`` option. You mu
     {{ some_variable | to_yaml(indent=8, width=1337) }}
     {{ some_variable | to_nice_yaml(indent=8, width=1337) }}
 
-The filter does support passing through other YAML parameters. For a full list, see the `PyYAML documentation`_.
+The filter does support passing through other YAML parameters. For a full list, see the `PyYAML documentation`_ for ``dump()``.
 
 If you are reading in some already formatted data:
 
@@ -1583,7 +1583,16 @@ Some hash types allow providing a rounds parameter:
     {{ 'secretpassword' | password_hash('sha256', 'mysecretsalt', rounds=10000) }}
     # => "$5$rounds=10000$mysecretsalt$Tkm80llAxD4YHll6AgNIztKn0vzAACsuuEfYeGP7tm7"
 
-Hash type 'blowfish' (BCrypt) provides the facility to specify the version of the BCrypt algorithm
+The filter `password_hash` produces different results depending on whether you installed `passlib` or not.
+
+To ensure idempotency, specify `rounds` to be neither `crypt`'s nor `passlib`'s default, which is `5000` for `crypt` and a variable value (`535000` for sha256, `656000` for sha512) for `passlib`:
+
+.. code-block:: yaml+jinja
+
+    {{ 'secretpassword' | password_hash('sha256', 'mysecretsalt', rounds=5001) }}
+    # => "$5$rounds=5001$mysecretsalt$wXcTWWXbfcR8er5IVf7NuquLvnUA6s8/qdtOhAZ.xN."
+
+Hash type 'blowfish' (BCrypt) provides the facility to specify the version of the BCrypt algorithm.
 
 .. code-block:: yaml+jinja
 
@@ -1817,16 +1826,20 @@ The ``regex_search`` filter returns an empty string if it cannot find a match:
     {{ 'ansible' | regex_search('foobar') }}
     # => ''
 
-Note that due to historic behavior and custom re-implementation of some of the Jinja internals in Ansible there is an exception to the behavior. When used in a Jinja expression (for example in conjunction with operators, other filters, and so on) the return value differs, in those situations the return value is ``none``. See the two examples below:
 
-.. code-block:: yaml+jinja
+.. note::
+
+
+  The ``regex_search`` filter returns ``None`` when used in a Jinja expression (for example in conjunction with operators, other filters, and so on). See the two examples below.
+
+  .. code-block:: Jinja
 
     {{ 'ansible' | regex_search('foobar') == '' }}
     # => False
-    {{ 'ansible' | regex_search('foobar') == none }}
+    {{ 'ansible' | regex_search('foobar') is none }}
     # => True
 
-When ``jinja2_native`` setting is enabled, the ``regex_search`` filter always returns ``none`` if it cannot find a match.
+  This is due to historic behavior and the custom re-implementation of some of the Jinja internals in Ansible. Enable the ``jinja2_native`` setting if you want the ``regex_search`` filter to always return ``None`` if it cannot find a match. See :ref:`jinja2_faqs` for details.
 
 To extract all occurrences of regex matches in a string, use the ``regex_findall`` filter:
 
@@ -2029,7 +2042,7 @@ To split a string into a list:
 .. code-block:: yaml+jinja
 
     {{ csv_string | split(",") }}
-    
+
 .. versionadded:: 2.11
 
 To work with Base64 encoded strings:
@@ -2116,6 +2129,13 @@ To format a date using a string (like with the shell date command), use the "str
     # Use arbitrary epoch value
     {{ '%Y-%m-%d' | strftime(0) }}          # => 1970-01-01
     {{ '%Y-%m-%d' | strftime(1441357287) }} # => 2015-09-04
+
+.. versionadded:: 2.13
+
+strftime takes an optional utc argument, defaulting to False, meaning times are in the local timezone::
+
+    {{ '%H:%M:%S' | strftime }}           # time now in local timezone
+    {{ '%H:%M:%S' | strftime(utc=True) }} # time now in UTC
 
 .. note:: To get all string possibilities, check https://docs.python.org/3/library/time.html#time.strftime
 

@@ -80,19 +80,71 @@ pip_install() {
     done
 }
 
-bootstrap_remote_freebsd()
+bootstrap_remote_alpine()
 {
-    if [ "${python_version}" = "2.7" ]; then
-        # on Python 2.7 our only option is to use virtualenv
-        virtualenv_pkg="py27-virtualenv"
-    else
-        # on Python 3.x we'll use the built-in venv instead
-        virtualenv_pkg=""
-    fi
+    py_pkg_prefix="py3"
 
     packages="
+        bash
+        gcc
+        python3-dev
+        ${py_pkg_prefix}-pip
+        "
+
+    if [ "${controller}" ]; then
+        packages="
+            ${packages}
+            ${py_pkg_prefix}-cryptography
+            ${py_pkg_prefix}-packaging
+            ${py_pkg_prefix}-yaml
+            ${py_pkg_prefix}-jinja2
+            ${py_pkg_prefix}-resolvelib
+            "
+    fi
+
+    while true; do
+        # shellcheck disable=SC2086
+        apk add -q ${packages} \
+        && break
+        echo "Failed to install packages. Sleeping before trying again..."
+        sleep 10
+    done
+}
+
+bootstrap_remote_fedora()
+{
+    py_pkg_prefix="python3"
+
+    packages="
+        gcc
+        ${py_pkg_prefix}-devel
+        "
+
+    if [ "${controller}" ]; then
+        packages="
+            ${packages}
+            ${py_pkg_prefix}-cryptography
+            ${py_pkg_prefix}-jinja2
+            ${py_pkg_prefix}-packaging
+            ${py_pkg_prefix}-pyyaml
+            ${py_pkg_prefix}-resolvelib
+            "
+    fi
+
+    while true; do
+        # shellcheck disable=SC2086
+        dnf install -q -y ${packages} \
+        && break
+        echo "Failed to install packages. Sleeping before trying again..."
+        sleep 10
+    done
+}
+
+bootstrap_remote_freebsd()
+{
+    packages="
         python${python_package_version}
-        ${virtualenv_pkg}
+        py${python_package_version}-sqlite3
         bash
         curl
         gtar
@@ -107,12 +159,11 @@ bootstrap_remote_freebsd()
         # Declare platform/python version combinations which do not have supporting OS packages available.
         # For these combinations ansible-test will use pip to install the requirements instead.
         case "${platform_version}/${python_version}" in
-            "13.0/3.8")
-                jinja2_pkg=""  # not available
-                cryptography_pkg=""  # not available
-                pyyaml_pkg=""  # not available
+            "12.3/3.8")
                 ;;
-            "13.0/3.9")
+            "13.1/3.8")
+                ;;
+            *)
                 jinja2_pkg=""  # not available
                 cryptography_pkg=""  # not available
                 pyyaml_pkg=""  # not available
@@ -176,13 +227,6 @@ bootstrap_remote_rhel_7()
         python-devel
         python-virtualenv
         "
-
-    if [ "${controller}" ]; then
-        packages="
-            ${packages}
-            python2-cryptography
-            "
-    fi
 
     while true; do
         # shellcheck disable=SC2086
@@ -281,6 +325,60 @@ bootstrap_remote_rhel_pinned_pip_packages()
     pip_install "${pip_packages}"
 }
 
+bootstrap_remote_ubuntu()
+{
+    py_pkg_prefix="python3"
+
+    packages="
+        gcc
+        python${python_version}-dev
+        python3-pip
+        python${python_version}-venv
+        "
+
+    if [ "${controller}" ]; then
+        cryptography_pkg="${py_pkg_prefix}-cryptography"
+        jinja2_pkg="${py_pkg_prefix}-jinja2"
+        packaging_pkg="${py_pkg_prefix}-packaging"
+        pyyaml_pkg="${py_pkg_prefix}-yaml"
+        resolvelib_pkg="${py_pkg_prefix}-resolvelib"
+
+        # Declare platforms which do not have supporting OS packages available.
+        # For these ansible-test will use pip to install the requirements instead.
+        # Only the platform is checked since Ubuntu shares Python packages across Python versions.
+        case "${platform_version}" in
+            "20.04")
+                jinja2_pkg=""  # too old
+                resolvelib_pkg=""  # not available
+                ;;
+        esac
+
+        packages="
+            ${packages}
+            ${cryptography_pkg}
+            ${jinja2_pkg}
+            ${packaging_pkg}
+            ${pyyaml_pkg}
+            ${resolvelib_pkg}
+            "
+
+        if [ "${platform_version}/${python_version}" = "20.04/3.9" ]; then
+            # Install pyyaml using pip so libyaml support is available on Python 3.9.
+            # The OS package install (which is installed by default) only has a .so file for Python 3.8.
+            pip_install "--upgrade pyyaml"
+        fi
+    fi
+
+    while true; do
+        # shellcheck disable=SC2086
+        apt-get update -qq -y && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends ${packages} \
+        && break
+        echo "Failed to install packages. Sleeping before trying again..."
+        sleep 10
+    done
+}
+
 bootstrap_docker()
 {
     # Required for newer mysql-server packages to install/upgrade on Ubuntu 16.04.
@@ -296,9 +394,12 @@ bootstrap_remote()
         python_package_version="$(echo "${python_version}" | tr -d '.')"
 
         case "${platform}" in
+            "alpine") bootstrap_remote_alpine ;;
+            "fedora") bootstrap_remote_fedora ;;
             "freebsd") bootstrap_remote_freebsd ;;
             "macos") bootstrap_remote_macos ;;
             "rhel") bootstrap_remote_rhel ;;
+            "ubuntu") bootstrap_remote_ubuntu ;;
         esac
     done
 }

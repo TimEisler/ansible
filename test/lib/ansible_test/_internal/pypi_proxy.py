@@ -70,7 +70,7 @@ def run_pypi_proxy(args, targets_use_pypi):  # type: (EnvironmentConfig, bool) -
         display.warning('Unable to use the PyPI proxy because Docker is not available. Installation of packages using `pip` may fail.')
         return
 
-    image = 'quay.io/ansible/pypi-test-container:1.0.0'
+    image = 'quay.io/ansible/pypi-test-container:2.0.0'
     port = 3141
 
     run_support_container(
@@ -126,7 +126,8 @@ def configure_target_pypi_proxy(args, profile, pypi_endpoint, pypi_hostname):  #
 
     force = 'yes' if profile.config.is_managed else 'no'
 
-    run_playbook(args, inventory_path, 'pypi_proxy_prepare.yml', dict(pypi_endpoint=pypi_endpoint, pypi_hostname=pypi_hostname, force=force), capture=True)
+    run_playbook(args, inventory_path, 'pypi_proxy_prepare.yml', capture=True, variables=dict(
+        pypi_endpoint=pypi_endpoint, pypi_hostname=pypi_hostname, force=force))
 
     atexit.register(cleanup_pypi_proxy)
 

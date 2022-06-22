@@ -41,7 +41,7 @@ from ansible.module_utils._text import to_bytes, to_native, to_text
 from ansible.utils import context_objects as co
 from ansible.utils.display import Display
 from units.compat import unittest
-from mock import patch, MagicMock
+from unittest.mock import patch, MagicMock
 
 
 @pytest.fixture(autouse='function')
@@ -323,15 +323,6 @@ class ValidRoleTests(object):
     def test_role_dirs(self):
         for d in self.expected_role_dirs:
             self.assertTrue(os.path.isdir(os.path.join(self.role_dir, d)), msg="Expected role subdirectory {0} doesn't exist".format(d))
-
-    def test_travis_yml(self):
-        with open(os.path.join(self.role_dir, '.travis.yml'), 'r') as f:
-            contents = f.read()
-
-        with open(os.path.join(self.role_skeleton_path, '.travis.yml'), 'r') as f:
-            expected_contents = f.read()
-
-        self.assertEqual(expected_contents, contents, msg='.travis.yml does not match expected')
 
     def test_readme_contents(self):
         with open(os.path.join(self.role_dir, 'README.md'), 'r') as readme:
@@ -631,7 +622,7 @@ def test_invalid_collection_name_install(name, expected, tmp_path_factory):
     # Used to be: expected = "Invalid collection name '%s', name must be in the format <namespace>.<collection>" % expected
     expected = "Neither the collection requirement entry key 'name', nor 'source' point to a concrete resolvable collection artifact. "
     expected += r"Also 'name' is not an FQCN\. A valid collection name must be in the format <namespace>\.<collection>\. "
-    expected += r"Please make sure that the namespace and the collection name  contain characters from \[a\-zA\-Z0\-9_\] only\."
+    expected += r"Please make sure that the namespace and the collection name contain characters from \[a\-zA\-Z0\-9_\] only\."
 
     gc = GalaxyCLI(args=['ansible-galaxy', 'collection', 'install', name, '-p', os.path.join(install_path, 'install')])
     with pytest.raises(AnsibleError, match=expected):
@@ -1093,7 +1084,7 @@ def test_parse_requirements_without_mandatory_name_key(requirements_cli, require
 
     expected = "Neither the collection requirement entry key 'name', nor 'source' point to a concrete resolvable collection artifact. "
     expected += r"Also 'name' is not an FQCN\. A valid collection name must be in the format <namespace>\.<collection>\. "
-    expected += r"Please make sure that the namespace and the collection name  contain characters from \[a\-zA\-Z0\-9_\] only\."
+    expected += r"Please make sure that the namespace and the collection name contain characters from \[a\-zA\-Z0\-9_\] only\."
 
     with pytest.raises(AnsibleError, match=expected):
         requirements_cli._parse_requirements_file(requirements_file)

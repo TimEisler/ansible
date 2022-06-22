@@ -451,6 +451,8 @@ password_expire_min:
 '''
 
 
+import ctypes
+import ctypes.util
 import errno
 import grp
 import calendar
@@ -470,15 +472,42 @@ from ansible.module_utils._text import to_bytes, to_native, to_text
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.common.locale import get_best_parsable_locale
 from ansible.module_utils.common.sys_info import get_platform_subclass
+import ansible.module_utils.compat.typing as t
+
+
+class StructSpwdType(ctypes.Structure):
+    _fields_ = [
+        ('sp_namp', ctypes.c_char_p),
+        ('sp_pwdp', ctypes.c_char_p),
+        ('sp_lstchg', ctypes.c_long),
+        ('sp_min', ctypes.c_long),
+        ('sp_max', ctypes.c_long),
+        ('sp_warn', ctypes.c_long),
+        ('sp_inact', ctypes.c_long),
+        ('sp_expire', ctypes.c_long),
+        ('sp_flag', ctypes.c_ulong),
+    ]
+
 
 try:
-    import spwd
+    _LIBC = ctypes.cdll.LoadLibrary(
+        t.cast(
+            str,
+            ctypes.util.find_library('c')
+        )
+    )
+    _LIBC.getspnam.argtypes = (ctypes.c_char_p,)
+    _LIBC.getspnam.restype = ctypes.POINTER(StructSpwdType)
     HAVE_SPWD = True
-except ImportError:
+except AttributeError:
     HAVE_SPWD = False
 
 
 _HASH_RE = re.compile(r'[^a-zA-Z0-9./=]')
+
+
+def getspnam(b_name):
+    return _LIBC.getspnam(b_name).contents
 
 
 class User(object):
@@ -664,22 +693,26 @@ class User(object):
             # exists with the same name as the user to prevent
             # errors from useradd trying to create a group when
             # USERGROUPS_ENAB is set in /etc/login.defs.
-            if os.path.exists('/etc/redhat-release'):
-                dist = distro.version()
-                major_release = int(dist.split('.')[0])
-                if major_release <= 5 or self.local:
-                    cmd.append('-n')
+            if self.local:
+                # luseradd uses -n instead of -N
+                cmd.append('-n')
+            else:
+                if os.path.exists('/etc/redhat-release'):
+                    dist = distro.version()
+                    major_release = int(dist.split('.')[0])
+                    if major_release <= 5:
+                        cmd.append('-n')
+                    else:
+                        cmd.append('-N')
+                elif os.path.exists('/etc/SuSE-release'):
+                    # -N did not exist in useradd before SLE 11 and did not
+                    # automatically create a group
+                    dist = distro.version()
+                    major_release = int(dist.split('.')[0])
+                    if major_release >= 12:
+                        cmd.append('-N')
                 else:
                     cmd.append('-N')
-            elif os.path.exists('/etc/SuSE-release'):
-                # -N did not exist in useradd before SLE 11 and did not
-                # automatically create a group
-                dist = distro.version()
-                major_release = int(dist.split('.')[0])
-                if major_release >= 12:
-                    cmd.append('-N')
-            else:
-                cmd.append('-N')
 
         if self.groups is not None and len(self.groups):
             groups = self.get_groups_set()
@@ -821,7 +854,7 @@ class User(object):
             ginfo = self.group_info(self.group)
             if info[3] != ginfo[2]:
                 cmd.append('-g')
-                cmd.append(self.group)
+                cmd.append(ginfo[2])
 
         if self.groups is not None:
             # get a list of all groups for the user, including the primary
@@ -1052,7 +1085,11 @@ class User(object):
         max_needs_change = self.password_expire_max is not None
 
         if HAVE_SPWD:
-            shadow_info = spwd.getspnam(self.name)
+            try:
+                shadow_info = getspnam(to_bytes(self.name))
+            except ValueError:
+                return None, '', ''
+
             min_needs_change &= self.password_expire_min != shadow_info.sp_min
             max_needs_change &= self.password_expire_max != shadow_info.sp_max
 
@@ -1074,18 +1111,12 @@ class User(object):
         expires = ''
         if HAVE_SPWD:
             try:
-                passwd = spwd.getspnam(self.name)[1]
-                expires = spwd.getspnam(self.name)[7]
+                shadow_info = getspnam(to_bytes(self.name))
+                passwd = to_native(shadow_info.sp_pwdp)
+                expires = shadow_info.sp_expire
                 return passwd, expires
-            except KeyError:
+            except ValueError:
                 return passwd, expires
-            except OSError as e:
-                # Python 3.6 raises PermissionError instead of KeyError
-                # Due to absence of PermissionError in python2.7 need to check
-                # errno
-                if e.errno in (errno.EACCES, errno.EPERM, errno.ENOENT):
-                    return passwd, expires
-                raise
 
         if not self.user_exists():
             return passwd, expires

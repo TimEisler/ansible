@@ -20,20 +20,8 @@ An Ansible role has a defined directory structure with eight main standard direc
     site.yml
     webservers.yml
     fooservers.yml
-    roles/
-        common/
-            tasks/
-            handlers/
-            library/
-            files/
-            templates/
-            vars/
-            defaults/
-            meta/
-        webservers/
-            tasks/
-            defaults/
-            meta/
+.. include:: shared_snippets/role_directory.txt
+
 
 By default Ansible will look in each directory within a role for a ``main.yml`` file for relevant content (also ``main.yaml`` and ``main``):
 
@@ -406,7 +394,7 @@ Passing different parameters
 
 If you pass different parameters in each role definition, Ansible runs the role more than once. Providing different variable values is not the same as passing different role parameters. You must use the ``roles`` keyword for this behavior, since ``import_role`` and ``include_role`` do not accept role parameters.
 
-This playbook runs the ``foo`` role twice:
+This play runs the ``foo`` role twice:
 
 .. code-block:: yaml
 
@@ -455,7 +443,7 @@ In this example, Ansible runs ``foo`` twice because we have explicitly enabled i
 Using role dependencies
 =======================
 
-Role dependencies let you automatically pull in other roles when using a role. Ansible does not execute role dependencies when you include or import a role. You must use the ``roles`` keyword if you want Ansible to execute role dependencies.
+Role dependencies let you automatically pull in other roles when using a role.
 
 Role dependencies are prerequisites, not true dependencies. The roles do not have a parent/child relationship. Ansible loads all listed roles, runs the roles listed under ``dependencies`` first, then runs the role that lists them. The play object is the parent of all roles, including roles called by a ``dependencies`` list.
 

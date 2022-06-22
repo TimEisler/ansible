@@ -25,6 +25,7 @@ options:
     default: inventory_hostname
     type: str
     vars:
+    - name: inventory_hostname
     - name: ansible_host
     - name: ansible_psrp_host
   remote_user:
@@ -876,7 +877,7 @@ if ($bytes_read -gt 0) {
                         % (command_name, str(error), position,
                            error.message, error.fq_error)
             stacktrace = error.script_stacktrace
-            if self._play_context.verbosity >= 3 and stacktrace is not None:
+            if display.verbosity >= 3 and stacktrace is not None:
                 error_msg += "\r\nStackTrace:\r\n%s" % stacktrace
             stderr_list.append(error_msg)
 

@@ -26,7 +26,7 @@ from ansible.playbook.conditional import Conditional
 from ansible.playbook.task import Task
 from ansible.plugins.loader import become_loader, cliconf_loader, connection_loader, httpapi_loader, netconf_loader, terminal_loader
 from ansible.template import Templar
-from ansible.utils.collection_loader import AnsibleCollectionConfig
+from ansible.utils.collection_loader import AnsibleCollectionConfig, AnsibleCollectionRef
 from ansible.utils.listify import listify_lookup_plugin_terms
 from ansible.utils.unsafe_proxy import to_unsafe_text, wrap_var
 from ansible.vars.clean import namespace_facts, clean_facts
@@ -189,8 +189,8 @@ class TaskExecutor:
         except AnsibleError as e:
             return dict(failed=True, msg=wrap_var(to_text(e, nonstring='simplerepr')), _ansible_no_log=self._play_context.no_log)
         except Exception as e:
-            return dict(failed=True, msg='Unexpected failure during module execution.', exception=to_text(traceback.format_exc()),
-                        stdout='', _ansible_no_log=self._play_context.no_log)
+            return dict(failed=True, msg=wrap_var('Unexpected failure during module execution: %s' % (to_native(e, nonstring='simplerepr'))),
+                        exception=to_text(traceback.format_exc()), stdout='', _ansible_no_log=self._play_context.no_log)
         finally:
             try:
                 self._connection.close()
@@ -283,6 +283,7 @@ class TaskExecutor:
             index_var = templar.template(self._task.loop_control.index_var)
             loop_pause = templar.template(self._task.loop_control.pause)
             extended = templar.template(self._task.loop_control.extended)
+            extended_allitems = templar.template(self._task.loop_control.extended_allitems)
 
             # This may be 'None',so it is templated below after we ensure a value and an item is assigned
             label = self._task.loop_control.label
@@ -310,7 +311,6 @@ class TaskExecutor:
 
             if extended:
                 task_vars['ansible_loop'] = {
-                    'allitems': items,
                     'index': item_index + 1,
                     'index0': item_index,
                     'first': item_index == 0,
@@ -319,6 +319,8 @@ class TaskExecutor:
                     'revindex': items_len - item_index,
                     'revindex0': items_len - item_index - 1,
                 }
+                if extended_allitems:
+                    task_vars['ansible_loop']['allitems'] = items
                 try:
                     task_vars['ansible_loop']['nextitem'] = items[item_index + 1]
                 except IndexError:
@@ -521,7 +523,7 @@ class TaskExecutor:
         # Now we do final validation on the task, which sets all fields to their final values.
         try:
             self._task.post_validate(templar=templar)
-        except AnsibleError as e:
+        except AnsibleError:
             raise
         except Exception:
             return dict(changed=False, failed=True, _ansible_no_log=no_log, exception=to_text(traceback.format_exc()))
@@ -590,11 +592,16 @@ class TaskExecutor:
             cvars['ansible_python_interpreter'] = sys.executable
 
         # get handler
-        self._handler = self._get_action_handler(connection=self._connection, templar=templar)
+        self._handler, module_context = self._get_action_handler_with_module_context(connection=self._connection, templar=templar)
+
+        if module_context is not None:
+            module_defaults_fqcn = module_context.resolved_fqcn
+        else:
+            module_defaults_fqcn = self._task.resolved_action
 
         # Apply default params for action/module, if present
         self._task.args = get_action_args_with_defaults(
-            self._task.resolved_action, self._task.args, self._task.module_defaults, templar,
+            module_defaults_fqcn, self._task.args, self._task.module_defaults, templar,
             action_groups=self._task._parent._play._action_groups
         )
 
@@ -1093,7 +1100,12 @@ class TaskExecutor:
         '''
         Returns the correct action plugin to handle the requestion task action
         '''
+        return self._get_action_handler_with_module_context(connection, templar)[0]
 
+    def _get_action_handler_with_module_context(self, connection, templar):
+        '''
+        Returns the correct action plugin to handle the requestion task action and the module context
+        '''
         module_collection, separator, module_name = self._task.action.rpartition(".")
         module_prefix = module_name.split('_')[0]
         if module_collection:
@@ -1106,8 +1118,16 @@ class TaskExecutor:
 
         collections = self._task.collections
 
+        # Check if the module has specified an action handler
+        module = self._shared_loader_obj.module_loader.find_plugin_with_context(
+            self._task.action, collection_list=collections
+        )
+        if not module.resolved or not module.action_plugin:
+            module = None
+        if module is not None:
+            handler_name = module.action_plugin
         # let action plugin override module, fallback to 'normal' action plugin otherwise
-        if self._shared_loader_obj.action_loader.has_plugin(self._task.action, collection_list=collections):
+        elif self._shared_loader_obj.action_loader.has_plugin(self._task.action, collection_list=collections):
             handler_name = self._task.action
         elif all((module_prefix in C.NETWORK_GROUP_MODULES, self._shared_loader_obj.action_loader.has_plugin(network_action, collection_list=collections))):
             handler_name = network_action
@@ -1133,7 +1153,7 @@ class TaskExecutor:
         if not handler:
             raise AnsibleError("the handler '%s' was not found" % handler_name)
 
-        return handler
+        return handler, module
 
 
 def start_connection(play_context, variables, task_uuid):
@@ -1165,10 +1185,13 @@ def start_connection(play_context, variables, task_uuid):
         'ANSIBLE_NETCONF_PLUGINS': netconf_loader.print_paths(),
         'ANSIBLE_TERMINAL_PLUGINS': terminal_loader.print_paths(),
     })
+    verbosity = []
+    if display.verbosity:
+        verbosity.append('-%s' % ('v' * display.verbosity))
     python = sys.executable
     master, slave = pty.openpty()
     p = subprocess.Popen(
-        [python, ansible_connection, to_text(os.getppid()), to_text(task_uuid)],
+        [python, ansible_connection, *verbosity, to_text(os.getppid()), to_text(task_uuid)],
         stdin=slave, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
     )
     os.close(slave)
@@ -1212,7 +1235,7 @@ def start_connection(play_context, variables, task_uuid):
                     display.vvvv(message, host=play_context.remote_addr)
 
     if 'error' in result:
-        if play_context.verbosity > 2:
+        if display.verbosity > 2:
             if result.get('exception'):
                 msg = "The full traceback is:\n" + result['exception']
                 display.display(msg, color=C.COLOR_ERROR)

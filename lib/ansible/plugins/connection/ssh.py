@@ -174,7 +174,10 @@ DOCUMENTATION = '''
             - name: ssh_extra_args
           default: ''
       reconnection_retries:
-          description: Number of attempts to connect.
+          description:
+            - Number of attempts to connect.
+            - Ansible retries connections only if it gets an SSH error with a return code of 255.
+            - Any errors with return codes other than 255 indicate an issue with program execution.
           default: 0
           type: integer
           env:
@@ -698,7 +701,7 @@ class Connection(ConnectionBase):
                 self._add_args(b_command, b_args, u'disable batch mode for sshpass')
             b_command += [b'-b', b'-']
 
-        if self._play_context.verbosity > 3:
+        if display.verbosity > 3:
             b_command.append(b'-vvv')
 
         # Next, we add ssh_args

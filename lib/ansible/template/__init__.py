@@ -674,6 +674,7 @@ class Templar:
             extensions=self._get_extensions(),
             loader=FileSystemLoader(loader.get_basedir() if loader else '.'),
         )
+        self.environment.template_class.environment_class = environment_class
 
         # jinja2 global is inconsistent across versions, this normalizes them
         self.environment.globals['dict'] = dict
@@ -987,6 +988,14 @@ class Templar:
                 raise AnsibleError(to_native(msg), orig_exc=e)
             return [] if wantlist else None
 
+        if not is_sequence(ran):
+            display.deprecated(
+                f'The lookup plugin \'{name}\' was expected to return a list, got \'{type(ran)}\' instead. '
+                f'The lookup plugin \'{name}\' needs to be changed to return a list. '
+                'This will be an error in Ansible 2.18',
+                version='2.18'
+            )
+
         if ran and allow_unsafe is False:
             if self.cur_context:
                 self.cur_context.unsafe = True
@@ -1012,6 +1021,12 @@ class Templar:
                     ran = wrap_var(ran[0])
                 else:
                     ran = wrap_var(ran)
+            except KeyError:
+                # Lookup Plugin returned a dict.  Return comma-separated string of keys
+                # for backwards compat.
+                # FIXME this can be removed when support for non-list return types is removed.
+                # See https://github.com/ansible/ansible/pull/77789
+                ran = wrap_var(",".join(ran))
 
         return ran
 
@@ -1053,7 +1068,10 @@ class Templar:
                 line = data[len(JINJA2_OVERRIDE):eol]
                 data = data[eol + 1:]
                 for pair in line.split(','):
-                    (key, val) = pair.split(':')
+                    if ':' not in pair:
+                        raise AnsibleError("failed to parse jinja2 override '%s'."
+                                           " Did you use something different from colon as key-value separator?" % pair.strip())
+                    (key, val) = pair.split(':', 1)
                     key = key.strip()
                     setattr(myenv, key, ast.literal_eval(val.strip()))
 
@@ -1076,8 +1094,12 @@ class Templar:
 
             jvars = AnsibleJ2Vars(self, t.globals)
 
-            self.cur_context = new_context = t.new_context(jvars, shared=True)
-            rf = t.root_render_func(new_context)
+            # In case this is a recursive call to do_template we need to
+            # save/restore cur_context to prevent overriding __UNSAFE__.
+            cached_context = self.cur_context
+
+            self.cur_context = t.new_context(jvars, shared=True)
+            rf = t.root_render_func(self.cur_context)
 
             try:
                 if not self.jinja2_native and not convert_data:
@@ -1085,7 +1107,7 @@ class Templar:
                 else:
                     res = self.environment.concat(rf)
 
-                unsafe = getattr(new_context, 'unsafe', False)
+                unsafe = getattr(self.cur_context, 'unsafe', False)
                 if unsafe:
                     res = wrap_var(res)
             except TypeError as te:
@@ -1096,6 +1118,8 @@ class Templar:
                 else:
                     display.debug("failing because of a type error, template data is: %s" % to_text(data))
                     raise AnsibleError("Unexpected templating type error occurred on (%s): %s" % (to_native(data), to_native(te)))
+            finally:
+                self.cur_context = cached_context
 
             if isinstance(res, string_types) and preserve_trailing_newlines:
                 # The low level calls above do not preserve the newline

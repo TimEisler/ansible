@@ -20,10 +20,12 @@ If you want to follow the conversation about what features will be added to ``an
 
 * the :ref:`roadmaps`
 * the :ref:`Ansible Release Schedule <release_and_maintenance>`
+* the :ref:`ansible-core project branches and tags <core_branches_and_tags>`
 * various GitHub `projects <https://github.com/ansible/ansible/projects>`_ - for example:
 
    * the `2.12 release project <https://github.com/ansible/ansible/projects/43>`_
    * the `core documentation project <https://github.com/ansible/ansible/projects/27>`_
+
 
 .. _community_pull_requests:
 
@@ -34,7 +36,7 @@ Micro development: the lifecycle of a PR
 If you want to contribute a feature or fix a bug in ``ansible-core`` or in a collection, you must open a **pull request** ("PR" for short). GitHub provides a great overview of `how the pull request process works <https://help.github.com/articles/about-pull-requests/>`_ in general. The ultimate goal of any pull request is to get merged and become part of a collection or ``ansible-core``.
 Here's an overview of the PR lifecycle:
 
-* Contributor opens a PR
+* Contributor opens a PR (always against the ``devel`` branch)
 * Ansibot reviews the PR
 * Ansibot assigns labels
 * Ansibot pings maintainers
@@ -43,6 +45,7 @@ Here's an overview of the PR lifecycle:
 * Contributor addresses any feedback from reviewers
 * Developers, maintainers, community re-review
 * PR merged or closed
+* PR `backported <backport_process>`_ to one or more ``stable-X.Y`` branches (optional, bugfixes only)
 
 Automated PR review: ansibullbot
 --------------------------------
@@ -158,8 +161,7 @@ More precisely:
 
 * Every bugfix PR must have a changelog fragment. The only exception are fixes to a change that has not yet been included in a release.
 * Every feature PR must have a changelog fragment.
-* New modules and plugins (except jinja2 filter and test plugins) must have ``versions_added`` set correctly, and do not need a changelog fragment. The tooling detects new modules and plugins by their ``versions_added`` value and announces them in the next release's changelog automatically.
-* New jinja2 filter and test plugins, and also new roles and playbooks (for collections) must have a changelog fragment. See :ref:`changelogs_how_to_format_j2_roles_playbooks` or the `antsibull-changelog documentation for such changelog fragments <https://github.com/ansible-community/antsibull-changelog/blob/main/docs/changelogs.rst#adding-new-roles-playbooks-test-and-filter-plugins>`_ for information on what the fragments should look like.
+* New modules and plugins (including jinja2 filter and test plugins) must have ``version_added`` entries set correctly in their documentation, and do not need a changelog fragment. The tooling detects new modules and plugins by their ``version_added`` values and announces them in the next release's changelog automatically.
 
 We build short summary changelogs for minor releases as well as for major releases. If you backport a bugfix, include a changelog fragment with the backport PR.
 
@@ -249,7 +251,9 @@ A single changelog fragment may contain multiple sections but most will only con
 
 Each changelog entry must contain a link to its issue between parentheses at the end. If there is no corresponding issue, the entry must contain a link to the PR itself.
 
-Most changelog entries are ``bugfixes`` or ``minor_changes``.
+Most changelog entries are ``bugfixes`` or ``minor_changes``. The changelog tool also supports ``trivial``, which are not listed in the actual changelog output but are used by collections repositories that require a changelog fragment for each PR.
+
+
 
 .. _changelogs_how_to_format:
 
@@ -295,43 +299,14 @@ You can find more example changelog fragments in the `changelog directory <https
 
 After you have written the changelog fragment for your PR, commit the file and include it with the pull request.
 
-.. _changelogs_how_to_format_j2_roles_playbooks:
+.. _changelogs_how_to_format_playbooks:
 
-Changelog fragment entry format for new jinja2 plugins, roles, and playbooks
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Changelog fragment entry format for new playbooks
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-While new modules and plugins that are not jinja2 filter or test plugins are mentioned automatically in the generated changelog, jinja2 filter and test plugins, roles, and playbooks are not. To make sure they are mentioned, a changelog fragment in a specific format is needed:
+While new modules, plugins, and roles are mentioned automatically in the generated changelog, playbooks are not. To make sure they are mentioned, a changelog fragment in a specific format is needed:
 
 .. code-block:: yaml
-
-    # A new jinja2 filter plugin:
-    add plugin.filter:
-      - # The following needs to be the name of the filter itself, not of the file
-        # the filter is included in!
-        name: to_time_unit
-        # The description should be in the same format as short_description for
-        # other plugins and modules: it should start with an upper-case letter and
-        # not have a period at the end.
-        description: Converts a time expression to a given unit
-
-    # A new jinja2 test plugin:
-    add plugin.test:
-      - # The following needs to be the name of the test itself, not of the file
-        # the test is included in!
-        name: asn1time
-        # The description should be in the same format as short_description for
-        # other plugins and modules: it should start with an upper-case letter and
-        # not have a period at the end.
-        description: Check whether the given string is an ASN.1 time
-
-    # A new role:
-    add object.role:
-      - # This should be the short (non-FQCN) name of the role.
-        name: nginx
-        # The description should be in the same format as short_description for
-        # plugins and modules: it should start with an upper-case letter and
-        # not have a period at the end.
-        description: A nginx installation role
 
     # A new playbook:
     add object.playbook:
@@ -355,7 +330,7 @@ We do **not** backport features.
 
    These instructions assume that:
 
-    * ``stable-2.12`` is the targeted release branch for the backport
+    * ``stable-2.13`` is the targeted release branch for the backport
     * ``https://github.com/ansible/ansible.git`` is configured as a ``git remote`` named ``upstream``. If you do not use a ``git remote`` named ``upstream``, adjust the instructions accordingly.
     * ``https://github.com/<yourgithubaccount>/ansible.git`` is configured as a ``git remote`` named ``origin``. If you do not use a ``git remote`` named ``origin``, adjust the instructions accordingly.
 
@@ -364,7 +339,7 @@ We do **not** backport features.
 .. code-block:: shell
 
        git fetch upstream
-       git checkout -b backport/2.12/[PR_NUMBER_FROM_DEVEL] upstream/stable-2.12
+       git checkout -b backport/2.12/[PR_NUMBER_FROM_DEVEL] upstream/stable-2.13
 
 #. Cherry pick the relevant commit SHA from the devel branch into your feature branch, handling merge conflicts as necessary:
 
@@ -378,15 +353,15 @@ We do **not** backport features.
 
 .. code-block:: shell
 
-       git push origin backport/2.12/[PR_NUMBER_FROM_DEVEL]
+       git push origin backport/2.13/[PR_NUMBER_FROM_DEVEL]
 
-#. Submit the pull request for ``backport/2.12/[PR_NUMBER_FROM_DEVEL]`` against the ``stable-2.12`` branch
+#. Submit the pull request for ``backport/2.13/[PR_NUMBER_FROM_DEVEL]`` against the ``stable-2.13`` branch
 
 #. The Release Manager will decide whether to merge the backport PR before the next minor release. There isn't any need to follow up. Just ensure that the automated tests (CI) are green.
 
 .. note::
 
-    The branch name ``backport/2.12/[PR_NUMBER_FROM_DEVEL]`` is somewhat arbitrary, but conveys meaning about the purpose of the branch. This branch name format is not required, but it can be helpful, especially when making multiple backport PRs for multiple stable branches.
+    The branch name ``backport/2.13/[PR_NUMBER_FROM_DEVEL]`` is somewhat arbitrary but conveys meaning about the purpose of the branch. This branch name format is not required, but it can be helpful, especially when making multiple backport PRs for multiple stable branches.
 
 .. note::
 

@@ -227,8 +227,24 @@ class _ComputedReqKindsMixin:
             )
 
         tmp_inst_req = cls(None, None, dir_path, 'dir', None)
-        req_name = art_mgr.get_direct_collection_fqcn(tmp_inst_req)
         req_version = art_mgr.get_direct_collection_version(tmp_inst_req)
+        try:
+            req_name = art_mgr.get_direct_collection_fqcn(tmp_inst_req)
+        except TypeError as err:
+            # Looks like installed/source dir but isn't: doesn't have valid metadata.
+            display.warning(
+                u"Collection at '{path!s}' has a {manifest_json!s} "
+                u"or {galaxy_yml!s} file but it contains invalid metadata.".
+                format(
+                    galaxy_yml=to_text(_GALAXY_YAML),
+                    manifest_json=to_text(_MANIFEST_JSON),
+                    path=to_text(dir_path, errors='surrogate_or_strict'),
+                ),
+            )
+            raise ValueError(
+                "Collection at '{path!s}' has invalid metadata".
+                format(path=to_text(dir_path, errors='surrogate_or_strict'))
+            ) from err
 
         return cls(req_name, req_version, dir_path, 'dir', None)
 
@@ -264,7 +280,7 @@ class _ComputedReqKindsMixin:
         return cls.from_requirement_dict(req, artifacts_manager)
 
     @classmethod
-    def from_requirement_dict(cls, collection_req, art_mgr):
+    def from_requirement_dict(cls, collection_req, art_mgr, validate_signature_options=True):
         req_name = collection_req.get('name', None)
         req_version = collection_req.get('version', '*')
         req_type = collection_req.get('type')
@@ -272,7 +288,7 @@ class _ComputedReqKindsMixin:
         req_source = collection_req.get('source', None)
         req_signature_sources = collection_req.get('signatures', None)
         if req_signature_sources is not None:
-            if art_mgr.keyring is None:
+            if validate_signature_options and art_mgr.keyring is None:
                 raise AnsibleError(
                     f"Signatures were provided to verify {req_name} but no keyring was configured."
                 )
@@ -322,7 +338,7 @@ class _ComputedReqKindsMixin:
                     'not an FQCN. A valid collection name must be in '
                     'the format <namespace>.<collection>. Please make '
                     'sure that the namespace and the collection name '
-                    ' contain characters from [a-zA-Z0-9_] only.'
+                    'contain characters from [a-zA-Z0-9_] only.'
                     '{extra_tip!s}'.format(extra_tip=tip),
                 )
 

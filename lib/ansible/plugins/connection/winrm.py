@@ -25,6 +25,7 @@ DOCUMENTATION = """
             - Address of the windows machine
         default: inventory_hostname
         vars:
+            - name: inventory_hostname
             - name: ansible_host
             - name: ansible_winrm_host
         type: str
@@ -320,7 +321,7 @@ class Connection(ConnectionBase):
         display.vvvvv("creating Kerberos CC at %s" % self._kerb_ccache.name)
         krb5ccname = "FILE:%s" % self._kerb_ccache.name
         os.environ["KRB5CCNAME"] = krb5ccname
-        krb5env = dict(KRB5CCNAME=krb5ccname)
+        krb5env = dict(PATH=os.environ["PATH"], KRB5CCNAME=krb5ccname)
 
         # Add any explicit environment vars into the krb5env block
         kinit_env_vars = self.get_option('kinit_env_vars')
